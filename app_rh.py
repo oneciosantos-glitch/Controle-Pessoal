@@ -1520,6 +1520,43 @@ with aba8:
     # ---------- NOVA DIÁRIA (CADASTRO RÁPIDO) ----------
     st.markdown("---")
     st.subheader("➕ CADASTRAR NOVA DIÁRIA")
+
+    # Gerenciamento de itens de diária (fora do form para permitir botões dinâmicos)
+    if "itens_diaria" not in st.session_state:
+        st.session_state.itens_diaria = [{"qtde": 1, "valor": 0.0}]
+
+    st.markdown("**📋 Itens de Diária** — adicione quantos itens quiser com quantidades e valores diferentes:")
+    for i, item in enumerate(st.session_state.itens_diaria):
+        cols = st.columns([2, 2, 1])
+        with cols[0]:
+            item["qtde"] = st.number_input(
+                f"Qtde Item {i+1}", min_value=1, max_value=30, value=int(item["qtde"]),
+                key=f"qtde_item_d_{i}"
+            )
+        with cols[1]:
+            item["valor"] = st.number_input(
+                f"Valor Unit. Item {i+1} (R$)", min_value=0.0, format="%.2f", value=float(item["valor"]),
+                key=f"valor_item_d_{i}"
+            )
+        with cols[2]:
+            st.markdown("<br>", unsafe_allow_html=True)
+            if len(st.session_state.itens_diaria) > 1:
+                if st.button("🗑️ Remover", key=f"rm_item_d_{i}"):
+                    st.session_state.itens_diaria.pop(i)
+                    st.rerun()
+
+    if st.button("➕ Adicionar Item de Diária", key="add_item_diaria"):
+        st.session_state.itens_diaria.append({"qtde": 1, "valor": 0.0})
+        st.rerun()
+
+    # Calcular totais
+    total_qtde = sum(int(item["qtde"]) for item in st.session_state.itens_diaria)
+    total_valor = sum(int(item["qtde"]) * float(item["valor"]) for item in st.session_state.itens_diaria)
+    detalhe_itens = "  |  ".join(
+        [f"{int(item['qtde'])}x R$ {float(item['valor']):.2f}" for item in st.session_state.itens_diaria]
+    )
+    st.info(f"**Resumo:** {detalhe_itens}  →  **Total: {total_qtde} diárias = R$ {total_valor:,.2f}**")
+
     with st.form("nova_diaria", clear_on_submit=True):
         c1, c2, c3 = st.columns(3)
         with c1:
@@ -1536,8 +1573,6 @@ with aba8:
         with c3:
             data_pag_d = st.text_input("Data de Pagamento (DD/MM/AAAA)", key="nova_data_pag_d")
             motivo_d = st.text_input("Motivo *", key="nova_motivo_d")
-            qtde_d = st.number_input("Qtde de Diárias *", min_value=1, max_value=30, value=1, key="nova_qtde_d")
-            valor_d = st.number_input("Valor Unitário (R$) *", min_value=0.0, format="%.2f", key="nova_valor_d")
             situacao_d = st.selectbox("Situação *", ["FALTA ENVIAR AO FINANCEIRO", "ENVIADO/PENDENTE", "PAGO"], key="nova_sit_d")
         observacao_d = st.text_area("Observação (erros de pagamento, conta em nome de terceiro, conta incorreta, etc.)", key="nova_obs_d")
         submitted = st.form_submit_button("💾 SALVAR DIÁRIA", type="primary")
@@ -1550,12 +1585,14 @@ with aba8:
             if not nome_d.strip(): erros.append("Nome do Colaborador")
             if not cpf_d.strip(): erros.append("CPF")
             if not motivo_d.strip(): erros.append("Motivo")
-            if qtde_d <= 0: erros.append("Qtde deve ser > 0")
-            if valor_d <= 0: erros.append("Valor deve ser > 0")
+            if total_qtde <= 0: erros.append("Qtde total deve ser > 0")
+            if total_valor <= 0: erros.append("Valor total deve ser > 0")
             if erros:
                 st.error("❌ Campos obrigatórios: " + ", ".join(erros))
             else:
-                valor_total = qtde_d * valor_d
+                # Junta os valores unitários em uma string descritiva
+                valores_desc = ", ".join([f"{int(item['qtde'])}x R${float(item['valor']):.2f}" for item in st.session_state.itens_diaria])
+                valor_medio = total_valor / total_qtde if total_qtde > 0 else 0
                 nova_linha = {
                     "LOJA": loja_d,
                     "MES": mes_d,
@@ -1568,16 +1605,17 @@ with aba8:
                     "DATA EXECUCAO": data_exec_d.strip(),
                     "DATA PAGAMENTO": data_pag_d.strip(),
                     "MOTIVO": motivo_d.strip().upper(),
-                    "QTDE DE DIARIAS": str(qtde_d),
-                    "VALOR UNITARIO": f"{valor_d:.2f}",
-                    "VALOR TOTAL": f"{valor_total:.2f}",
+                    "QTDE DE DIARIAS": str(total_qtde),
+                    "VALOR UNITARIO": f"{valor_medio:.2f}",
+                    "VALOR TOTAL": f"{total_valor:.2f}",
                     "SITUACAO": situacao_d,
                     "DATA CADASTRO": datetime.now().strftime("%d/%m/%Y %H:%M"),
                     "COMPROVANTE": "",
-                    "OBSERVACAO": observacao_d.strip().upper()
+                    "OBSERVACAO": (observacao_d.strip().upper() + " | ITENS: " + valores_desc) if observacao_d.strip() else "ITENS: " + valores_desc
                 }
                 df_diarias = pd.concat([df_diarias, pd.DataFrame([nova_linha])], ignore_index=True)
                 salvar_diarias(df_diarias)
+                st.session_state.itens_diaria = [{"qtde": 1, "valor": 0.0}]
                 st.success("✅ Diária cadastrada com sucesso!")
                 st.rerun()
 
