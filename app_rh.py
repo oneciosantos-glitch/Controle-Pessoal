@@ -16,6 +16,11 @@ from PIL import Image
 from openpyxl import load_workbook, Workbook
 from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.pdfgen import canvas
+from reportlab.lib.units import cm
+from io import BytesIO
 
 # ====================== GOOGLE SHEETS INTEGRAÇÃO ======================
 # Verifica se as credenciais do Google Sheets estão configuradas
@@ -1633,15 +1638,6 @@ with aba8:
 
 def gerar_pdf_rota(tipo, origem, destino, distancia, tempo_info, custo_ida=None, custo_volta=None, litros=None, preco_litro=None, consumo=None):
     """Gera um PDF com o resumo da rota e custos usando reportlab."""
-    try:
-        from reportlab.lib.pagesizes import A4
-        from reportlab.lib import colors
-        from reportlab.pdfgen import canvas
-        from reportlab.lib.units import cm
-        from io import BytesIO
-    except ImportError:
-        return None
-
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
     width, height = A4
@@ -1979,7 +1975,7 @@ with aba9:
                                 layers=[path_layer, scatter_layer],
                                 initial_view_state=view_state,
                                 tooltip={"text": "Rota de carro"},
-                                height=600,
+                                height=800,
                             ))
                             st.caption("🟢 Origem  |  🔴 Destino  |  🟠 Linha = rota por estrada")
                         except Exception as e:
@@ -2087,7 +2083,7 @@ with aba9:
                             layers=[path_layer, scatter_layer],
                             initial_view_state=view_state,
                             tooltip={"text": "Rota aérea (linha reta)"},
-                            height=600,
+                            height=800,
                         ))
                         st.caption("🟢 Origem  |  🔴 Destino  |  🔵 Linha = trajeto aéreo aproximado")
                     except Exception as e:
