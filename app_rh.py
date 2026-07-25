@@ -1632,128 +1632,169 @@ with aba8:
 
 
 def gerar_pdf_rota(tipo, origem, destino, distancia, tempo_info, custo_ida=None, custo_volta=None, litros=None, preco_litro=None, consumo=None):
-    """Gera um PDF com o resumo da rota e custos usando fpdf2 (UTF-8)."""
+    """Gera um PDF com o resumo da rota e custos usando reportlab."""
     try:
-        from fpdf import FPDF
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib import colors
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.units import cm
+        from io import BytesIO
     except ImportError:
         return None
 
-    class PDF(FPDF):
-        def header(self):
-            self.set_font("Helvetica", "B", 16)
-            self.set_text_color(33, 37, 41)
-            self.cell(0, 10, "RESUMO DE VIAGEM - RH COMPLETO", new_x="LMARGIN", new_y="NEXT", align="C")
-            self.ln(2)
-            self.set_draw_color(200, 200, 200)
-            y = self.get_y()
-            self.line(10, y, 200, y)
-            self.ln(5)
+    buffer = BytesIO()
+    c = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
+    margin = 2 * cm
+    x = margin
+    y = height - margin
+    line_height = 14
 
-        def footer(self):
-            self.set_y(-15)
-            self.set_font("Helvetica", "I", 8)
-            self.set_text_color(128, 128, 128)
-            self.cell(0, 10, f"Gerado em {datetime.now().strftime('%d/%m/%Y %H:%M')} - Página {self.page_no()}", align="C")
+    def hex_color(r, g, b):
+        return colors.Color(r / 255, g / 255, b / 255)
 
-    pdf = PDF()
-    pdf.set_auto_page_break(auto=True, margin=15)
-    pdf.add_page()
+    def draw_text(text, size=11, bold=False, italic=False, color=None, x_pos=None, y_pos=None, align="left"):
+        nonlocal y
+        font = "Helvetica-Bold" if bold else ("Helvetica-Oblique" if italic else "Helvetica")
+        c.setFont(font, size)
+        c.setFillColor(color if color else colors.black)
+        px = x_pos if x_pos is not None else x
+        py = y_pos if y_pos is not None else y
+        if align == "center":
+            c.drawCentredString(width / 2, py, text)
+        elif align == "right":
+            c.drawRightString(px, py, text)
+        else:
+            c.drawString(px, py, text)
+        if y_pos is None:
+            y -= size + 4
+        return py
+
+    def draw_line(y_pos=None):
+        nonlocal y
+        py = y_pos if y_pos is not None else y
+        c.setStrokeColor(colors.lightgrey)
+        c.line(margin, py, width - margin, py)
+        if y_pos is None:
+            y -= 8
+        return py
+
+    # Header
+    draw_text("RESUMO DE VIAGEM - RH COMPLETO", size=16, bold=True, color=hex_color(33, 37, 41), align="center")
+    y -= 4
+    draw_line()
+    y -= 8
 
     # Tipo de transporte
-    pdf.set_font("Helvetica", "B", 12)
-    pdf.set_text_color(0, 102, 204)
-    pdf.cell(0, 8, f"Meio de Transporte: {tipo.upper()}", new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(2)
+    draw_text(f"Meio de Transporte: {tipo.upper()}", size=12, bold=True, color=hex_color(0, 102, 204))
+    y -= 4
 
     # Origem e Destino
-    pdf.set_font("Helvetica", "B", 11)
-    pdf.set_text_color(33, 37, 41)
-    pdf.cell(0, 7, "ORIGEM:", new_x="LMARGIN", new_y="NEXT")
-    pdf.set_font("Helvetica", "", 11)
-    pdf.cell(0, 7, origem, new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(1)
-    pdf.set_font("Helvetica", "B", 11)
-    pdf.cell(0, 7, "DESTINO:", new_x="LMARGIN", new_y="NEXT")
-    pdf.set_font("Helvetica", "", 11)
-    pdf.cell(0, 7, destino, new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(4)
+    draw_text("ORIGEM:", size=11, bold=True, color=hex_color(33, 37, 41))
+    draw_text(origem, size=11)
+    y -= 2
+    draw_text("DESTINO:", size=11, bold=True, color=hex_color(33, 37, 41))
+    draw_text(destino, size=11)
+    y -= 8
+    draw_line()
+    y -= 8
 
-    # Linha separadora
-    y = pdf.get_y()
-    pdf.set_draw_color(200, 200, 200)
-    pdf.line(10, y, 200, y)
-    pdf.ln(4)
+    # Resumo da rota
+    draw_text("RESUMO DA ROTA", size=12, bold=True, color=hex_color(33, 37, 41))
+    y -= 2
 
-    # Resumo
-    pdf.set_font("Helvetica", "B", 12)
-    pdf.set_text_color(33, 37, 41)
-    pdf.cell(0, 8, "RESUMO DA ROTA", new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(1)
+    c.setFont("Helvetica", 11)
+    c.setFillColor(hex_color(50, 50, 50))
+    c.drawString(x, y, "Distancia:")
+    c.setFont("Helvetica-Bold", 11)
+    c.drawString(x + 140, y, f"{distancia:.1f} km")
+    y -= line_height
 
-    pdf.set_font("Helvetica", "", 11)
-    pdf.set_text_color(50, 50, 50)
-    pdf.cell(60, 8, "Distancia:")
-    pdf.set_font("Helvetica", "B", 11)
-    pdf.cell(0, 8, f"{distancia:.1f} km", new_x="LMARGIN", new_y="NEXT")
-
-    pdf.set_font("Helvetica", "", 11)
-    pdf.cell(60, 8, "Tempo Estimado:")
-    pdf.set_font("Helvetica", "B", 11)
-    pdf.cell(0, 8, tempo_info, new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(4)
+    c.setFont("Helvetica", 11)
+    c.drawString(x, y, "Tempo Estimado:")
+    c.setFont("Helvetica-Bold", 11)
+    c.drawString(x + 140, y, tempo_info)
+    y -= 22
 
     # Custo de combustível (apenas carro)
     if tipo == "Carro" and custo_ida is not None:
-        y = pdf.get_y()
-        pdf.set_draw_color(200, 200, 200)
-        pdf.line(10, y, 200, y)
-        pdf.ln(4)
-        pdf.set_font("Helvetica", "B", 12)
-        pdf.set_text_color(33, 37, 41)
-        pdf.cell(0, 8, "CUSTO ESTIMADO DE COMBUSTIVEL", new_x="LMARGIN", new_y="NEXT")
-        pdf.ln(1)
+        draw_line()
+        y -= 8
+        draw_text("CUSTO ESTIMADO DE COMBUSTIVEL", size=12, bold=True, color=hex_color(33, 37, 41))
+        y -= 2
 
-        pdf.set_font("Helvetica", "", 11)
-        pdf.set_text_color(50, 50, 50)
-        pdf.cell(60, 8, "Preco/Litro:")
-        pdf.set_font("Helvetica", "B", 11)
-        pdf.cell(0, 8, f"R$ {preco_litro:.2f}", new_x="LMARGIN", new_y="NEXT")
+        c.setFont("Helvetica", 11)
+        c.setFillColor(hex_color(50, 50, 50))
+        c.drawString(x, y, "Preco/Litro:")
+        c.setFont("Helvetica-Bold", 11)
+        c.drawString(x + 140, y, f"R$ {preco_litro:.2f}")
+        y -= line_height
 
-        pdf.set_font("Helvetica", "", 11)
-        pdf.cell(60, 8, "Consumo do Veiculo:")
-        pdf.set_font("Helvetica", "B", 11)
-        pdf.cell(0, 8, f"{consumo:.1f} km/L", new_x="LMARGIN", new_y="NEXT")
+        c.setFont("Helvetica", 11)
+        c.drawString(x, y, "Consumo do Veiculo:")
+        c.setFont("Helvetica-Bold", 11)
+        c.drawString(x + 140, y, f"{consumo:.1f} km/L")
+        y -= line_height
 
-        pdf.set_font("Helvetica", "", 11)
-        pdf.cell(60, 8, "Litros Necessarios (ida):")
-        pdf.set_font("Helvetica", "B", 11)
-        pdf.cell(0, 8, f"{litros:.1f} L", new_x="LMARGIN", new_y="NEXT")
-        pdf.ln(2)
+        c.setFont("Helvetica", 11)
+        c.drawString(x, y, "Litros Necessarios (ida):")
+        c.setFont("Helvetica-Bold", 11)
+        c.drawString(x + 140, y, f"{litros:.1f} L")
+        y -= 20
 
-        pdf.set_fill_color(230, 245, 255)
-        pdf.set_font("Helvetica", "B", 11)
-        pdf.cell(60, 10, "Custo Ida:", border=1, fill=True)
-        pdf.cell(0, 10, f"R$ {custo_ida:,.2f}", border=1, fill=True, new_x="LMARGIN", new_y="NEXT")
+        # Tabela custos
+        box_h = 20
+        c.setFillColor(hex_color(230, 245, 255))
+        c.rect(x, y - box_h + 4, 140, box_h, fill=1, stroke=1)
+        c.setFillColor(colors.black)
+        c.setFont("Helvetica-Bold", 11)
+        c.drawString(x + 4, y - box_h + 14, "Custo Ida:")
+        c.drawRightString(x + 136, y - box_h + 14, f"R$ {custo_ida:,.2f}")
+        y -= box_h + 4
 
-        pdf.set_fill_color(255, 235, 230)
-        pdf.set_font("Helvetica", "B", 11)
-        pdf.cell(60, 10, "Custo Ida + Volta:", border=1, fill=True)
-        pdf.cell(0, 10, f"R$ {custo_volta:,.2f}", border=1, fill=True, new_x="LMARGIN", new_y="NEXT")
-        pdf.ln(4)
+        c.setFillColor(hex_color(255, 235, 230))
+        c.rect(x, y - box_h + 4, 140, box_h, fill=1, stroke=1)
+        c.setFillColor(colors.black)
+        c.setFont("Helvetica-Bold", 11)
+        c.drawString(x + 4, y - box_h + 14, "Custo Ida + Volta:")
+        c.drawRightString(x + 136, y - box_h + 14, f"R$ {custo_volta:,.2f}")
+        y -= box_h + 12
 
-    # Observacoes
-    y = pdf.get_y()
-    pdf.set_draw_color(200, 200, 200)
-    pdf.line(10, y, 200, y)
-    pdf.ln(4)
-    pdf.set_font("Helvetica", "I", 9)
-    pdf.set_text_color(100, 100, 100)
-    if tipo == "Carro":
-        pdf.multi_cell(0, 5, "Observacoes: Os valores de combustivel sao estimados e podem variar conforme o trajeto real, condicoes de transito e precos dos postos. O calculo de pedagio deve ser consultado separadamente.")
-    else:
-        pdf.multi_cell(0, 5, "Observacoes: A distancia exibida e em linha reta (trajeto aereo aproximado). O tempo inclui estimativa de taxi, decolagem e pouso. Valores de passagens devem ser consultados em companhias aereas.")
+    # Observações
+    draw_line()
+    y -= 8
+    c.setFont("Helvetica-Oblique", 9)
+    c.setFillColor(hex_color(100, 100, 100))
+    obs_text = (
+        "Observacoes: Os valores de combustivel sao estimados e podem variar conforme o trajeto real, condicoes de transito e precos dos postos. O calculo de pedagio deve ser consultado separadamente."
+        if tipo == "Carro"
+        else "Observacoes: A distancia exibida e em linha reta (trajeto aereo aproximado). O tempo inclui estimativa de taxi, decolagem e pouso. Valores de passagens devem ser consultados em companhias aereas."
+    )
+    text_obj = c.beginText(x, y)
+    text_obj.setFont("Helvetica-Oblique", 9)
+    max_width = width - 2 * margin
+    words = obs_text.split(" ")
+    line = ""
+    for word in words:
+        test = line + word + " "
+        if c.stringWidth(test, "Helvetica-Oblique", 9) < max_width:
+            line = test
+        else:
+            text_obj.textLine(line.strip())
+            line = word + " "
+    if line:
+        text_obj.textLine(line.strip())
+    c.drawText(text_obj)
 
-    return pdf.output()
+    # Footer
+    c.setFont("Helvetica-Oblique", 8)
+    c.setFillColor(hex_color(128, 128, 128))
+    c.drawCentredString(width / 2, 30, f"Gerado em {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+
+    c.showPage()
+    c.save()
+    return buffer.getvalue()
+
 
 # ================ ABA 9 - GUIA VIAGEM ================
 with aba9:
@@ -1897,7 +1938,7 @@ with aba9:
                                 mime="application/pdf"
                             )
                         else:
-                            st.warning("⚠️ Não foi possível gerar o PDF. Verifique se a biblioteca `fpdf` está instalada.")
+                            st.warning("⚠️ Não foi possível gerar o PDF. Verifique se a biblioteca `reportlab` está instalada.")
 
                         # Mapa com linha
                         st.markdown("---")
@@ -2005,7 +2046,7 @@ with aba9:
                             mime="application/pdf"
                         )
                     else:
-                        st.warning("⚠️ Não foi possível gerar o PDF. Verifique se a biblioteca `fpdf` está instalada.")
+                        st.warning("⚠️ Não foi possível gerar o PDF. Verifique se a biblioteca `reportlab` está instalada.")
 
                     # Mapa com linha reta
                     st.markdown("---")
