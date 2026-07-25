@@ -16,11 +16,6 @@ from PIL import Image
 from openpyxl import load_workbook, Workbook
 from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
-from reportlab.lib.pagesizes import A4
-from reportlab.lib import colors
-from reportlab.pdfgen import canvas
-from reportlab.lib.units import cm
-from io import BytesIO
 
 # ====================== GOOGLE SHEETS INTEGRAÇÃO ======================
 # Verifica se as credenciais do Google Sheets estão configuradas
@@ -1638,6 +1633,16 @@ with aba8:
 
 def gerar_pdf_rota(tipo, origem, destino, distancia, tempo_info, custo_ida=None, custo_volta=None, litros=None, preco_litro=None, consumo=None):
     """Gera um PDF com o resumo da rota e custos usando reportlab."""
+    try:
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib import colors
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.units import cm
+        from io import BytesIO
+    except ImportError as e:
+        st.error(f"Erro ao importar reportlab: {e}. Verifique se 'reportlab' está no requirements.txt e reinicie o app.")
+        return None
+
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
     width, height = A4
