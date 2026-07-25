@@ -1632,123 +1632,128 @@ with aba8:
 
 
 def gerar_pdf_rota(tipo, origem, destino, distancia, tempo_info, custo_ida=None, custo_volta=None, litros=None, preco_litro=None, consumo=None):
-    """Gera um PDF com o resumo da rota e custos."""
+    """Gera um PDF com o resumo da rota e custos usando fpdf2 (UTF-8)."""
     try:
         from fpdf import FPDF
     except ImportError:
         return None
+
     class PDF(FPDF):
         def header(self):
-            self.set_font("Arial", "B", 16)
+            self.set_font("Helvetica", "B", 16)
             self.set_text_color(33, 37, 41)
-            self.cell(0, 10, "RESUMO DE VIAGEM - RH COMPLETO", ln=True, align="C")
+            self.cell(0, 10, "RESUMO DE VIAGEM - RH COMPLETO", new_x="LMARGIN", new_y="NEXT", align="C")
             self.ln(2)
             self.set_draw_color(200, 200, 200)
-            self.line(10, self.get_y(), 200, self.get_y())
+            y = self.get_y()
+            self.line(10, y, 200, y)
             self.ln(5)
+
         def footer(self):
             self.set_y(-15)
-            self.set_font("Arial", "I", 8)
+            self.set_font("Helvetica", "I", 8)
             self.set_text_color(128, 128, 128)
-            self.cell(0, 10, f"Gerado em {datetime.now().strftime('%d/%m/%Y %H:%M')} - Página {self.page_no()}/{{nb}}", align="C")
+            self.cell(0, 10, f"Gerado em {datetime.now().strftime('%d/%m/%Y %H:%M')} - Página {self.page_no()}", align="C")
 
     pdf = PDF()
-    pdf.alias_nb_pages()
-    pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_page()
 
     # Tipo de transporte
-    pdf.set_font("Arial", "B", 12)
+    pdf.set_font("Helvetica", "B", 12)
     pdf.set_text_color(0, 102, 204)
-    pdf.cell(0, 8, f"Meio de Transporte: {tipo.upper()}", ln=True)
+    pdf.cell(0, 8, f"Meio de Transporte: {tipo.upper()}", new_x="LMARGIN", new_y="NEXT")
     pdf.ln(2)
 
     # Origem e Destino
-    pdf.set_font("Arial", "B", 11)
+    pdf.set_font("Helvetica", "B", 11)
     pdf.set_text_color(33, 37, 41)
-    pdf.cell(0, 7, "ORIGEM:", ln=True)
-    pdf.set_font("Arial", "", 11)
-    pdf.cell(0, 7, origem, ln=True)
+    pdf.cell(0, 7, "ORIGEM:", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Helvetica", "", 11)
+    pdf.cell(0, 7, origem, new_x="LMARGIN", new_y="NEXT")
     pdf.ln(1)
-    pdf.set_font("Arial", "B", 11)
-    pdf.cell(0, 7, "DESTINO:", ln=True)
-    pdf.set_font("Arial", "", 11)
-    pdf.cell(0, 7, destino, ln=True)
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.cell(0, 7, "DESTINO:", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Helvetica", "", 11)
+    pdf.cell(0, 7, destino, new_x="LMARGIN", new_y="NEXT")
     pdf.ln(4)
 
     # Linha separadora
+    y = pdf.get_y()
     pdf.set_draw_color(200, 200, 200)
-    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+    pdf.line(10, y, 200, y)
     pdf.ln(4)
 
     # Resumo
-    pdf.set_font("Arial", "B", 12)
+    pdf.set_font("Helvetica", "B", 12)
     pdf.set_text_color(33, 37, 41)
-    pdf.cell(0, 8, "RESUMO DA ROTA", ln=True)
+    pdf.cell(0, 8, "RESUMO DA ROTA", new_x="LMARGIN", new_y="NEXT")
     pdf.ln(1)
 
-    pdf.set_font("Arial", "", 11)
+    pdf.set_font("Helvetica", "", 11)
     pdf.set_text_color(50, 50, 50)
-    pdf.cell(60, 8, "Distância:", border=0)
-    pdf.set_font("Arial", "B", 11)
-    pdf.cell(0, 8, f"{distancia:.1f} km", ln=True)
+    pdf.cell(60, 8, "Distancia:")
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.cell(0, 8, f"{distancia:.1f} km", new_x="LMARGIN", new_y="NEXT")
 
-    pdf.set_font("Arial", "", 11)
-    pdf.cell(60, 8, "Tempo Estimado:", border=0)
-    pdf.set_font("Arial", "B", 11)
-    pdf.cell(0, 8, tempo_info, ln=True)
+    pdf.set_font("Helvetica", "", 11)
+    pdf.cell(60, 8, "Tempo Estimado:")
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.cell(0, 8, tempo_info, new_x="LMARGIN", new_y="NEXT")
     pdf.ln(4)
 
     # Custo de combustível (apenas carro)
     if tipo == "Carro" and custo_ida is not None:
+        y = pdf.get_y()
         pdf.set_draw_color(200, 200, 200)
-        pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+        pdf.line(10, y, 200, y)
         pdf.ln(4)
-        pdf.set_font("Arial", "B", 12)
+        pdf.set_font("Helvetica", "B", 12)
         pdf.set_text_color(33, 37, 41)
-        pdf.cell(0, 8, "CUSTO ESTIMADO DE COMBUSTIVEL", ln=True)
+        pdf.cell(0, 8, "CUSTO ESTIMADO DE COMBUSTIVEL", new_x="LMARGIN", new_y="NEXT")
         pdf.ln(1)
 
-        pdf.set_font("Arial", "", 11)
+        pdf.set_font("Helvetica", "", 11)
         pdf.set_text_color(50, 50, 50)
-        pdf.cell(60, 8, "Preço/Litro:", border=0)
-        pdf.set_font("Arial", "B", 11)
-        pdf.cell(0, 8, f"R$ {preco_litro:.2f}", ln=True)
+        pdf.cell(60, 8, "Preco/Litro:")
+        pdf.set_font("Helvetica", "B", 11)
+        pdf.cell(0, 8, f"R$ {preco_litro:.2f}", new_x="LMARGIN", new_y="NEXT")
 
-        pdf.set_font("Arial", "", 11)
-        pdf.cell(60, 8, "Consumo do Veiculo:", border=0)
-        pdf.set_font("Arial", "B", 11)
-        pdf.cell(0, 8, f"{consumo:.1f} km/L", ln=True)
+        pdf.set_font("Helvetica", "", 11)
+        pdf.cell(60, 8, "Consumo do Veiculo:")
+        pdf.set_font("Helvetica", "B", 11)
+        pdf.cell(0, 8, f"{consumo:.1f} km/L", new_x="LMARGIN", new_y="NEXT")
 
-        pdf.set_font("Arial", "", 11)
-        pdf.cell(60, 8, "Litros Necessarios (ida):", border=0)
-        pdf.set_font("Arial", "B", 11)
-        pdf.cell(0, 8, f"{litros:.1f} L", ln=True)
+        pdf.set_font("Helvetica", "", 11)
+        pdf.cell(60, 8, "Litros Necessarios (ida):")
+        pdf.set_font("Helvetica", "B", 11)
+        pdf.cell(0, 8, f"{litros:.1f} L", new_x="LMARGIN", new_y="NEXT")
         pdf.ln(2)
 
         pdf.set_fill_color(230, 245, 255)
-        pdf.set_font("Arial", "B", 11)
+        pdf.set_font("Helvetica", "B", 11)
         pdf.cell(60, 10, "Custo Ida:", border=1, fill=True)
-        pdf.cell(0, 10, f"R$ {custo_ida:,.2f}", border=1, fill=True, ln=True)
+        pdf.cell(0, 10, f"R$ {custo_ida:,.2f}", border=1, fill=True, new_x="LMARGIN", new_y="NEXT")
 
         pdf.set_fill_color(255, 235, 230)
-        pdf.set_font("Arial", "B", 11)
+        pdf.set_font("Helvetica", "B", 11)
         pdf.cell(60, 10, "Custo Ida + Volta:", border=1, fill=True)
-        pdf.cell(0, 10, f"R$ {custo_volta:,.2f}", border=1, fill=True, ln=True)
+        pdf.cell(0, 10, f"R$ {custo_volta:,.2f}", border=1, fill=True, new_x="LMARGIN", new_y="NEXT")
         pdf.ln(4)
 
     # Observacoes
+    y = pdf.get_y()
     pdf.set_draw_color(200, 200, 200)
-    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+    pdf.line(10, y, 200, y)
     pdf.ln(4)
-    pdf.set_font("Arial", "I", 9)
+    pdf.set_font("Helvetica", "I", 9)
     pdf.set_text_color(100, 100, 100)
     if tipo == "Carro":
         pdf.multi_cell(0, 5, "Observacoes: Os valores de combustivel sao estimados e podem variar conforme o trajeto real, condicoes de transito e precos dos postos. O calculo de pedagio deve ser consultado separadamente.")
     else:
         pdf.multi_cell(0, 5, "Observacoes: A distancia exibida e em linha reta (trajeto aereo aproximado). O tempo inclui estimativa de taxi, decolagem e pouso. Valores de passagens devem ser consultados em companhias aereas.")
 
-    return bytes(pdf.output())
+    return pdf.output()
 
 # ================ ABA 9 - GUIA VIAGEM ================
 with aba9:
