@@ -55,6 +55,36 @@ os.makedirs(PASTA_FOTOS, exist_ok=True)
 os.makedirs(PASTA_COMPROVANTES, exist_ok=True)
 
 MESES = ["Todos", "jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"]
+
+# ====================== FUNÇÕES DE BUSCA INTELIGENTE ======================
+import unicodedata
+
+def normalizar_texto(texto):
+    """Remove acentos, converte para maiúsculas e remove espaços extras."""
+    if pd.isna(texto):
+        return ""
+    texto = str(texto).strip()
+    texto = unicodedata.normalize('NFD', texto)
+    texto = ''.join(c for c in texto if unicodedata.category(c) != 'Mn')
+    texto = ' '.join(texto.split())  # remove espaços duplos
+    return texto.upper()
+
+def busca_palavras(serie, texto_busca):
+    """
+    Verifica se TODAS as palavras do texto_busca estão contidas em cada valor da série.
+    Ex: buscar 'CARLOS IVAN' encontra 'CARLOS IVAN SILVA VAZ'.
+    Ignora acentos, case e espaços extras.
+    """
+    texto_busca = normalizar_texto(texto_busca)
+    palavras = texto_busca.split()
+    if not palavras:
+        return pd.Series([True] * len(serie), index=serie.index)
+    serie_norm = serie.apply(normalizar_texto)
+    mascara = pd.Series([True] * len(serie), index=serie.index)
+    for palavra in palavras:
+        mascara = mascara & serie_norm.str.contains(palavra, case=False, regex=False, na=False)
+    return mascara
+
 SEMANAS = ["Todas", "1º Semana", "2º Semana", "3º Semana", "4º Semana"]
 SITUACOES_DIARIA = ["Todas", "FALTA ENVIAR AO FINANCEIRO", "ENVIADO/PENDENTE", "PAGO"]
 ANOS = [str(a) for a in range(2020, datetime.now().year + 2)]
@@ -754,7 +784,7 @@ def haversine(lat1, lon1, lat2, lon2):
 with aba1:
     dados = carregar_dados()
     
-    busca = st.text_input("🔍 Buscar por Matrícula ou Nome", placeholder="Digite exatamente como está na planilha")
+    busca = st.text_input("🔍 Buscar por Matrícula ou Nome", placeholder="Ex: CARLOS, 1234, SILVA VAZ...")
     
     col_f1, col_f2, col_f3 = st.columns(3)
     with col_f1:
@@ -773,8 +803,8 @@ with aba1:
 
     if busca.strip():
         lista = lista[
-            (lista["Matricula"].str.contains(busca, case=False, na=False)) |
-            (lista["Nome"].str.contains(busca, case=False, na=False))
+            busca_palavras(lista["Matricula"], busca) |
+            busca_palavras(lista["Nome"], busca)
         ]
     if filtro_loja != "Todas":
         lista = lista[lista["Loja"] == filtro_loja.strip()]
@@ -802,7 +832,7 @@ with aba1:
             dt_adm = datetime.strptime(val_campo("Admissao"), "%d/%m/%Y")
             hoje = datetime.now()
             dias_corridos = (hoje - dt_adm).days
-            for prazo in [30, 45, 60, 90]:
+            for prazo in [29, 44, 59, 89]:
                 rest = prazo - dias_corridos
                 if rest > 0:
                     status = f"Faltam {rest} dias"
@@ -1134,7 +1164,7 @@ with aba3:
         try:
             dt_adm = datetime.strptime(str(func["Admissao"]).strip(), "%d/%m/%Y")
             dias = (hoje - dt_adm).days
-            for p in [30,45,60,90]:
+            for p in [26,44,59,89]:
                 if 0 <= p - dias <=10:
                     tabela_exp.append([func["Matricula"], func["Nome"], func["Loja"], f"{p} dias", f"Faltam {p-dias} dias"])
                     break
@@ -1401,8 +1431,8 @@ with aba8:
         df_filtrado = df_filtrado[df_filtrado["SITUACAO"] == filtro_sit_d]
     if busca_d.strip():
         df_filtrado = df_filtrado[
-            df_filtrado["NOME COLABORADOR"].str.contains(busca_d, case=False, na=False) |
-            df_filtrado["CPF"].str.contains(busca_d, case=False, na=False)
+            busca_palavras(df_filtrado["NOME COLABORADOR"], busca_d) |
+            busca_palavras(df_filtrado["CPF"], busca_d)
         ]
 
     # ---------- CARDS DE RESUMO (ATUALIZADOS PELO FILTRO) ----------
