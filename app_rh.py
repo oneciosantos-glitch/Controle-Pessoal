@@ -1978,7 +1978,8 @@ with aba9:
                             st.pydeck_chart(pdk.Deck(
                                 layers=[path_layer, scatter_layer],
                                 initial_view_state=view_state,
-                                tooltip={"text": "Rota de carro"}
+                                tooltip={"text": "Rota de carro"},
+                                height=600,
                             ))
                             st.caption("🟢 Origem  |  🔴 Destino  |  🟠 Linha = rota por estrada")
                         except Exception as e:
@@ -2085,7 +2086,8 @@ with aba9:
                         st.pydeck_chart(pdk.Deck(
                             layers=[path_layer, scatter_layer],
                             initial_view_state=view_state,
-                            tooltip={"text": "Rota aérea (linha reta)"}
+                            tooltip={"text": "Rota aérea (linha reta)"},
+                            height=600,
                         ))
                         st.caption("🟢 Origem  |  🔴 Destino  |  🔵 Linha = trajeto aéreo aproximado")
                     except Exception as e:
