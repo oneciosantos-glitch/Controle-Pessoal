@@ -1,0 +1,8 @@
+streamlit
+pandas
+openpyxl
+Pillow
+matplotlib
+requests
+gspread
+fpdf
