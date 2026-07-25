@@ -724,6 +724,32 @@ def calcular_rota(lat1, lon1, lat2, lon2):
         pass
     return None, None, None
 
+
+
+def calcular_zoom(distancia_km):
+    """Calcula o nível de zoom do mapa baseado na distância."""
+    if distancia_km < 5: return 13
+    elif distancia_km < 20: return 11
+    elif distancia_km < 50: return 10
+    elif distancia_km < 100: return 9
+    elif distancia_km < 300: return 8
+    elif distancia_km < 600: return 7
+    elif distancia_km < 1200: return 6
+    elif distancia_km < 2500: return 5
+    elif distancia_km < 5000: return 4
+    else: return 3
+
+def haversine(lat1, lon1, lat2, lon2):
+    """Calcula distância em linha reta entre dois pontos (km)."""
+    from math import radians, sin, cos, sqrt, atan2
+    R = 6371.0
+    phi1, phi2 = radians(lat1), radians(lat2)
+    dphi = radians(lat2 - lat1)
+    dlambda = radians(lon2 - lon1)
+    a = sin(dphi/2)**2 + cos(phi1)*cos(phi2)*sin(dlambda/2)**2
+    c = 2 * atan2(sqrt(a), sqrt(1 - a))
+    return R * c
+
 # ================ ABA 1 - CADASTRO ================
 with aba1:
     dados = carregar_dados()
@@ -1606,55 +1632,94 @@ with aba8:
 # ================ ABA 9 - GUIA VIAGEM ================
 with aba9:
     st.subheader("🗺️ GUIA DE VIAGEM")
-    st.info("Pesquise a origem e o destino para ver a distância, tempo estimado e rota no mapa.")
+    st.info("Pesquise origem e destino para ver distância, tempo estimado, custo e rota no mapa.")
+
+    # --- Dados dos combos ---
+    PAÍSES = [
+        "Brasil", "Argentina", "Bolívia", "Chile", "Colômbia", "Equador", "Guiana",
+        "Paraguai", "Peru", "Suriname", "Uruguai", "Venezuela", "Estados Unidos",
+        "Canadá", "México", "Portugal", "Espanha", "França", "Alemanha", "Itália",
+        "Reino Unido", "Japão", "China", "Austrália", "Nova Zelândia", "África do Sul",
+        "Índia", "Rússia", "Ucrânia", "Turquia", "Emirados Árabes Unidos"
+    ]
+    ESTADOS_BR = [
+        "Acre (AC)", "Alagoas (AL)", "Amapá (AP)", "Amazonas (AM)", "Bahia (BA)",
+        "Ceará (CE)", "Distrito Federal (DF)", "Espírito Santo (ES)", "Goiás (GO)",
+        "Maranhão (MA)", "Mato Grosso (MT)", "Mato Grosso do Sul (MS)", "Minas Gerais (MG)",
+        "Pará (PA)", "Paraíba (PB)", "Paraná (PR)", "Pernambuco (PE)", "Piauí (PI)",
+        "Rio de Janeiro (RJ)", "Rio Grande do Norte (RN)", "Rio Grande do Sul (RS)",
+        "Rondônia (RO)", "Roraima (RR)", "Santa Catarina (SC)", "São Paulo (SP)",
+        "Sergipe (SE)", "Tocantins (TO)"
+    ]
+    ESTADOS_US = [
+        "Alabama (AL)", "Alaska (AK)", "Arizona (AZ)", "Arkansas (AR)", "Califórnia (CA)",
+        "Carolina do Norte (NC)", "Carolina do Sul (SC)", "Colorado (CO)", "Connecticut (CT)",
+        "Dakota do Norte (ND)", "Dakota do Sul (SD)", "Delaware (DE)", "Flórida (FL)",
+        "Geórgia (GA)", "Havaí (HI)", "Idaho (ID)", "Illinois (IL)", "Indiana (IN)",
+        "Iowa (IA)", "Kansas (KS)", "Kentucky (KY)", "Louisiana (LA)", "Maine (ME)",
+        "Maryland (MD)", "Massachusetts (MA)", "Michigan (MI)", "Minnesota (MN)",
+        "Mississippi (MS)", "Missouri (MO)", "Montana (MT)", "Nebraska (NE)", "Nevada (NV)",
+        "Nova Hampshire (NH)", "Nova Jersey (NJ)", "Nova York (NY)", "Novo México (NM)",
+        "Ohio (OH)", "Oklahoma (OK)", "Oregon (OR)", "Pensilvânia (PA)", "Rhode Island (RI)",
+        "Tennessee (TN)", "Texas (TX)", "Utah (UT)", "Vermont (VT)", "Virgínia (VA)",
+        "Virgínia Ocidental (WV)", "Washington (WA)", "Wisconsin (WI)", "Wyoming (WY)"
+    ]
+    ESTADOS_MX = [
+        "Aguascalientes", "Baja California", "Baja California Sur", "Campeche", "Chiapas",
+        "Chihuahua", "Coahuila", "Colima", "Durango", "Guanajuato", "Guerrero", "Hidalgo",
+        "Jalisco", "México", "Michoacán", "Morelos", "Nayarit", "Nuevo León", "Oaxaca",
+        "Puebla", "Querétaro", "Quintana Roo", "San Luis Potosí", "Sinaloa", "Sonora",
+        "Tabasco", "Tamaulipas", "Tlaxcala", "Veracruz", "Yucatán", "Zacatecas",
+        "Cidade do México"
+    ]
+
+    def input_endereco(label, key_prefix):
+        """Monta os inputs de endereço com combos de país e estado."""
+        st.markdown(f"**{label}**")
+        pais = st.selectbox(f"🌍 País", PAÍSES, key=f"{key_prefix}_pais")
+        if pais == "Brasil":
+            estado = st.selectbox(f"🏛️ Estado", ESTADOS_BR, key=f"{key_prefix}_estado")
+            estado_limp = estado.split(" (")[0] if "(" in estado else estado
+        elif pais == "Estados Unidos":
+            estado = st.selectbox(f"🏛️ Estado", ESTADOS_US, key=f"{key_prefix}_estado")
+            estado_limp = estado.split(" (")[0] if "(" in estado else estado
+        elif pais == "México":
+            estado = st.selectbox(f"🏛️ Estado", ESTADOS_MX, key=f"{key_prefix}_estado")
+            estado_limp = estado
+        else:
+            estado_limp = st.text_input(f"🏛️ Estado / Província", key=f"{key_prefix}_estado")
+        cidade = st.text_input(f"🏙️ Cidade", placeholder="Ex: Belém", key=f"{key_prefix}_cidade")
+        endereco = f"{cidade}, {estado_limp}, {pais}" if cidade.strip() and str(estado_limp).strip() else ""
+        return endereco, pais
+
     col_o, col_d = st.columns(2)
     with col_o:
-        origem = st.text_input("📍 Origem", placeholder="Ex: Belém, PA")
+        origem_str, pais_o = input_endereco("📍 ORIGEM", "orig")
     with col_d:
-        destino = st.text_input("📍 Destino", placeholder="Ex: Castanhal, PA")
-    if st.button("🚗 CALCULAR ROTA", type="primary"):
-        if not origem.strip() or not destino.strip():
-            st.warning("⚠️ Informe origem e destino.")
+        destino_str, pais_d = input_endereco("📍 DESTINO", "dest")
+
+    transporte = st.selectbox("🚗 Meio de Transporte", ["Carro", "Avião"])
+
+    if st.button("🚀 CALCULAR ROTA", type="primary"):
+        if not origem_str.strip() or not destino_str.strip():
+            st.warning("⚠️ Preencha cidade, estado e país tanto na origem quanto no destino.")
         else:
             with st.spinner("Consultando rota..."):
-                lat1, lon1 = geocodificar(origem.strip())
-                lat2, lon2 = geocodificar(destino.strip())
+                lat1, lon1 = geocodificar(origem_str.strip())
+                lat2, lon2 = geocodificar(destino_str.strip())
             if lat1 is None or lat2 is None:
-                st.error("❌ Não foi possível localizar um ou ambos os endereços. Tente ser mais específico (cidade, estado).")
+                st.error("❌ Não foi possível localizar um ou ambos os endereços. Tente incluir a cidade mais próxima ou verificar a grafia.")
             else:
-                distancia, tempo, geometria = calcular_rota(lat1, lon1, lat2, lon2)
-                if distancia is None:
-                    st.error("❌ Não foi possível calcular a rota. Tente novamente mais tarde.")
-                else:
-                    st.success("✅ Rota calculada com sucesso!")
-                    # Cálculo combustível
-                    st.markdown("---")
-                    st.subheader("⛽ CUSTO ESTIMADO DE COMBUSTÍVEL")
-                    col_comb1, col_comb2, col_comb3 = st.columns(3)
-                    with col_comb1:
-                        preco_litro = st.number_input("Preço/Litro (R$)", min_value=0.0, value=5.89, step=0.01, format="%.2f")
-                    with col_comb2:
-                        consumo_km_l = st.number_input("Consumo (km/L)", min_value=0.1, value=10.0, step=0.1, format="%.1f")
-                    with col_comb3:
-                        st.markdown("<br>", unsafe_allow_html=True)
-                        calc_comb = st.checkbox("Calcular custo", value=True)
-                    if calc_comb and preco_litro > 0 and consumo_km_l > 0:
-                        litros = distancia / consumo_km_l
-                        custo_ida = litros * preco_litro
-                        custo_ida_volta = custo_ida * 2
-                        c1, c2, c3, c4 = st.columns(4)
-                        with c1:
-                            st.metric("📏 Distância", f"{distancia:.1f} km")
-                        with c2:
-                            horas = int(tempo // 60)
-                            mins = int(tempo % 60)
-                            st.metric("⏱️ Tempo Estimado", f"{horas}h {mins}min")
-                        with c3:
-                            st.metric("⛽ Ida", f"R$ {custo_ida:,.2f}")
-                        with c4:
-                            st.metric("⛽ Ida + Volta", f"R$ {custo_ida_volta:,.2f}")
-                        st.info(f"💡 Litros necessários (ida): **{litros:.1f} L** | Preço/L: R$ {preco_litro:.2f} | Consumo: {consumo_km_l:.1f} km/L")
+                st.success("✅ Pontos localizados com sucesso!")
+                st.markdown("---")
+
+                # ---- CARRO ----
+                if transporte == "Carro":
+                    distancia, tempo, geometria = calcular_rota(lat1, lon1, lat2, lon2)
+                    if distancia is None:
+                        st.error("❌ Não foi possível calcular a rota de carro. Tente novamente mais tarde.")
                     else:
+                        st.subheader("📊 RESUMO DA ROTA (CARRO)")
                         c1, c2, c3 = st.columns(3)
                         with c1:
                             st.metric("📏 Distância", f"{distancia:.1f} km")
@@ -1664,48 +1729,157 @@ with aba9:
                             st.metric("⏱️ Tempo Estimado", f"{horas}h {mins}min")
                         with c3:
                             st.metric("💰 Pedágio", "Consultar via app")
+
+                        # Combustível
+                        st.markdown("---")
+                        st.subheader("⛽ CUSTO ESTIMADO DE COMBUSTÍVEL")
+                        cc1, cc2 = st.columns(2)
+                        with cc1:
+                            preco_litro = st.number_input("Preço/Litro (R$)", min_value=0.0, value=5.89, step=0.01, format="%.2f", key="preco_carro")
+                        with cc2:
+                            consumo_km_l = st.number_input("Consumo (km/L)", min_value=0.1, value=10.0, step=0.1, format="%.1f", key="consumo_carro")
+                        if preco_litro > 0 and consumo_km_l > 0:
+                            litros = distancia / consumo_km_l
+                            custo_ida = litros * preco_litro
+                            custo_ida_volta = custo_ida * 2
+                            cb1, cb2 = st.columns(2)
+                            with cb1:
+                                st.metric("⛽ Ida", f"R$ {custo_ida:,.2f}")
+                            with cb2:
+                                st.metric("⛽ Ida + Volta", f"R$ {custo_ida_volta:,.2f}")
+                            st.info(f"💡 Litros necessários (ida): **{litros:.1f} L** | Preço/L: R$ {preco_litro:.2f} | Consumo: {consumo_km_l:.1f} km/L")
+
+                        # Mapa com linha
+                        st.markdown("---")
+                        st.subheader("🗺️ Visualização da Rota")
+                        try:
+                            import pydeck as pdk
+                            coords = geometria["coordinates"]
+                            path_coords = coords  # já é [lon, lat]
+                            mid_lat = (lat1 + lat2) / 2
+                            mid_lon = (lon1 + lon2) / 2
+                            zoom_lvl = calcular_zoom(distancia)
+
+                            path_layer = pdk.Layer(
+                                "PathLayer",
+                                data=[{"path": path_coords, "color": [255, 60, 0]}],
+                                get_path="path",
+                                get_color="color",
+                                width_scale=20,
+                                width_min_pixels=4,
+                            )
+                            scatter_layer = pdk.Layer(
+                                "ScatterplotLayer",
+                                data=[
+                                    {"position": [lon1, lat1], "color": [0, 200, 0]},
+                                    {"position": [lon2, lat2], "color": [255, 0, 0]},
+                                ],
+                                get_position="position",
+                                get_color="color",
+                                get_radius=20000,
+                                radius_min_pixels=8,
+                                radius_max_pixels=25,
+                            )
+                            view_state = pdk.ViewState(
+                                latitude=mid_lat, longitude=mid_lon,
+                                zoom=zoom_lvl, pitch=0
+                            )
+                            st.pydeck_chart(pdk.Deck(
+                                layers=[path_layer, scatter_layer],
+                                initial_view_state=view_state,
+                                tooltip={"text": "Rota de carro"}
+                            ))
+                            st.caption("🟢 Origem  |  🔴 Destino  |  🟠 Linha = rota por estrada")
+                        except Exception as e:
+                            st.warning(f"Não foi possível exibir o mapa: {e}")
+
+                        # Instruções passo a passo
+                        st.markdown("---")
+                        st.subheader("📝 Instruções de Rota (passo a passo)")
+                        try:
+                            url = f"http://router.project-osrm.org/route/v1/driving/{lon1},{lat1};{lon2},{lat2}"
+                            params = {"overview": "false", "steps": "true"}
+                            resp = requests.get(url, params=params, timeout=20)
+                            dados_inst = resp.json()
+                            if dados_inst.get("routes"):
+                                legs = dados_inst["routes"][0]["legs"][0]
+                                passos = []
+                                for step in legs.get("steps", []):
+                                    nome = step.get("name", "")
+                                    dist = step.get("distance", 0)
+                                    instr = step.get("maneuver", {}).get("type", "continue")
+                                    passos.append(f"• {instr.upper()}: siga em **{nome}** por `{dist/1000:.1f} km`")
+                                if passos:
+                                    for p in passos[:25]:
+                                        st.markdown(p)
+                                    if len(passos) > 25:
+                                        st.info(f"... e mais {len(passos)-25} instruções.")
+                                else:
+                                    st.info("Nenhuma instrução detalhada disponível.")
+                            else:
+                                st.info("Instruções não disponíveis.")
+                        except Exception as e:
+                            st.info(f"Instruções não disponíveis: {e}")
+
+                # ---- AVIÃO ----
+                else:
+                    distancia = haversine(lat1, lon1, lat2, lon2)
+                    tempo_voo_min = (distancia / 850) * 60  # 850 km/h média
+                    tempo_total_min = tempo_voo_min + 90   # +1h30 taxi
+                    st.subheader("📊 RESUMO DA ROTA (AVIÃO)")
+                    a1, a2, a3 = st.columns(3)
+                    with a1:
+                        st.metric("📏 Distância (linha reta)", f"{distancia:.1f} km")
+                    with a2:
+                        horas_v = int(tempo_total_min // 60)
+                        mins_v = int(tempo_total_min % 60)
+                        st.metric("⏱️ Tempo Estimado", f"{horas_v}h {mins_v}min")
+                    with a3:
+                        st.metric("✈️ Veloc. Média", "~850 km/h")
+                    st.info("💡 O tempo inclui aproximadamente 1h30 de taxi, decolagem e pouso.")
+
+                    # Mapa com linha reta
                     st.markdown("---")
                     st.subheader("🗺️ Visualização da Rota")
                     try:
-                        coords = geometria["coordinates"]
-                        # Streamlit map precisa de [[lat, lon], ...]
-                        path_coords = [[c[1], c[0]] for c in coords]
+                        import pydeck as pdk
+                        path_coords = [[lon1, lat1], [lon2, lat2]]
                         mid_lat = (lat1 + lat2) / 2
                         mid_lon = (lon1 + lon2) / 2
-                        map_data = pd.DataFrame({
-                            "lat": [lat1, lat2] + [c[1] for c in coords[::max(1, len(coords)//50)]],
-                            "lon": [lon1, lon2] + [c[0] for c in coords[::max(1, len(coords)//50)]]
-                        })
-                        st.map(map_data, zoom=6)
-                        st.caption("🟢 Origem  |  🔴 Destino  |  Linha azul = rota aproximada")
+                        zoom_lvl = calcular_zoom(distancia)
+
+                        path_layer = pdk.Layer(
+                            "PathLayer",
+                            data=[{"path": path_coords, "color": [0, 100, 255]}],
+                            get_path="path",
+                            get_color="color",
+                            width_scale=20,
+                            width_min_pixels=4,
+                        )
+                        scatter_layer = pdk.Layer(
+                            "ScatterplotLayer",
+                            data=[
+                                {"position": [lon1, lat1], "color": [0, 200, 0]},
+                                {"position": [lon2, lat2], "color": [255, 0, 0]},
+                            ],
+                            get_position="position",
+                            get_color="color",
+                            get_radius=20000,
+                            radius_min_pixels=8,
+                            radius_max_pixels=25,
+                        )
+                        view_state = pdk.ViewState(
+                            latitude=mid_lat, longitude=mid_lon,
+                            zoom=zoom_lvl, pitch=0
+                        )
+                        st.pydeck_chart(pdk.Deck(
+                            layers=[path_layer, scatter_layer],
+                            initial_view_state=view_state,
+                            tooltip={"text": "Rota aérea (linha reta)"}
+                        ))
+                        st.caption("🟢 Origem  |  🔴 Destino  |  🔵 Linha = trajeto aéreo aproximado")
                     except Exception as e:
                         st.warning(f"Não foi possível exibir o mapa: {e}")
-                    st.markdown("---")
-                    st.subheader("📝 Instruções de Rota (passo a passo)")
-                    try:
-                        url = f"http://router.project-osrm.org/route/v1/driving/{lon1},{lat1};{lon2},{lat2}"
-                        params = {"overview": "false", "steps": "true"}
-                        resp = requests.get(url, params=params, timeout=20)
-                        dados_inst = resp.json()
-                        if dados_inst.get("routes"):
-                            legs = dados_inst["routes"][0]["legs"][0]
-                            passos = []
-                            for step in legs.get("steps", []):
-                                nome = step.get("name", "")
-                                dist = step.get("distance", 0)
-                                instr = step.get("maneuver", {}).get("type", "continue")
-                                passos.append(f"• {instr.upper()}: siga em **{nome}** por `{dist/1000:.1f} km`")
-                            if passos:
-                                for p in passos[:20]:
-                                    st.markdown(p)
-                                if len(passos) > 20:
-                                    st.info(f"... e mais {len(passos)-20} instruções.")
-                            else:
-                                st.info("Nenhuma instrução detalhada disponível.")
-                        else:
-                            st.info("Instruções não disponíveis.")
-                    except Exception as e:
-                        st.info(f"Instruções não disponíveis: {e}")
 
 # ================ ABA 10 - BACKUP / RESTAURAÇÃO ================
 with aba10:
