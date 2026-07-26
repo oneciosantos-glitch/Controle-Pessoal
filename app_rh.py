@@ -930,15 +930,50 @@ with aba1:
     mat_sel = ""
     if sel_auto and " - " in sel_auto:
         mat_sel = sel_auto.split(" - ")[0].strip()
+        st.success(f"✅ Colaborador selecionado: {sel_auto}")
+    
+    # ---------- BUSCA LIVRE E FILTROS ----------
+    st.markdown("---")
+    busca = st.text_input("🔍 Busca livre (filtra a tabela abaixo):", placeholder="Ex: CARLOS, 1234, SILVA VAZ...")
+    
+    col_f1, col_f2, col_f3 = st.columns(3)
+    with col_f1:
+        filtro_loja = st.selectbox("Filtrar por Loja", ["Todas"] + lista_lojas(), key="filtro_loja_cad")
+    with col_f2:
+        filtro_sit = st.selectbox("Filtrar por Situação", ["Todas"] + SITUACOES, key="filtro_sit_cad")
+    with col_f3:
+        filtro_cargo = st.selectbox("Filtrar por Cargo", ["Todos"] + lista_cargos(), key="filtro_cargo_cad")
+
+    lista = base_auto.copy()
+    if busca.strip():
+        lista = lista[
+            busca_palavras(lista["Matricula"], busca) |
+            busca_palavras(lista["Nome"], busca)
+        ]
+    if filtro_loja != "Todas":
+        lista = lista[lista["Loja"] == filtro_loja.strip()]
+    if filtro_sit != "Todas":
+        lista = lista[lista["Situacao"] == filtro_sit]
+    if filtro_cargo != "Todos":
+        lista = lista[lista["Cargo"] == filtro_cargo.strip()]
+
+    # Contador de resultados
+    total_encontrados = len(lista)
+    st.markdown(f"**📊 Total encontrado: {total_encontrados} colaborador(es)**")
+
+    st.dataframe(
+        lista[["Matricula","Nome","Loja","Situacao","Cargo"]],
+        use_container_width=True, hide_index=True
+    )
+
+    # Campo manual de matrícula (caso prefira digitar direto)
+    mat_manual = st.text_input("✏️ Digite a Matrícula EXATA para editar / excluir", value=mat_sel, placeholder="Igual coluna A da planilha", key="matricula_manual")
+    mat_sel = mat_manual.strip()
     
     reg = pd.DataFrame()
     if mat_sel:
         mat_busca = str(mat_sel).strip()
         reg = dados["Base_Dados"][dados["Base_Dados"]["Matricula"] == mat_busca]
-        if not reg.empty:
-            st.success(f"✅ Carregando dados de: {reg.iloc[0]['Nome']} (Matrícula: {mat_sel})")
-        else:
-            st.info("ℹ️ Matrícula não encontrada. Preencha os campos abaixo para cadastrar um novo colaborador.")
 
     val_campo = lambda nome: reg.iloc[0][nome] if not reg.empty else ""
 
