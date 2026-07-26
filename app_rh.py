@@ -588,6 +588,7 @@ def lista_cargos():
     return todas if todas else ["Sem Cargo"]
 
 def calcular_e_atualizar(form):
+    hoje = datetime.now().date()
     if form.get("dt_aviso") and form.get("dias_aviso") and str(form["dias_aviso"]).isdigit():
         try:
             dt = datetime.strptime(form["dt_aviso"], "%d/%m/%Y")
@@ -606,7 +607,9 @@ def calcular_e_atualizar(form):
         try:
             dt = datetime.strptime(form["dt_fer"], "%d/%m/%Y")
             form["retorno_fer"] = (dt + timedelta(days=int(form["dias_fer"]))).strftime("%d/%m/%Y")
-            if not any([
+            retorno_date = datetime.strptime(form["retorno_fer"], "%d/%m/%Y").date()
+            # Só define como Férias se ainda não passou a data de retorno
+            if retorno_date >= hoje and not any([
                 form.get("dt_pedido","").strip(), form.get("dt_rescisao","").strip(),
                 form.get("dt_abandono","").strip(), form.get("dt_desistencia","").strip(),
                 form.get("dt_termino_cont","").strip()
@@ -711,9 +714,61 @@ def gerar_ficha_individual(fd, fh, mr):
     wb.close()
     return nome_arq
 
+def verificar_retorno_ferias_automatico():
+    """Verifica funcionários em férias que já deveriam ter retornado e atualiza para Ativo."""
+    try:
+        dados = carregar_dados()
+        hoje = datetime.now().date()
+        base = dados["Base_Dados"]
+        alterados = []
+        for idx, row in base.iterrows():
+            if str(row.get("Situacao", "")).strip() != "Férias":
+                continue
+            retorno_str = str(row.get("DataRetornoFerias", "")).strip()
+            if not retorno_str:
+                continue
+            try:
+                retorno_date = datetime.strptime(retorno_str, "%d/%m/%Y").date()
+                if retorno_date < hoje:
+                    # Já passou a data de retorno, volta para Ativo
+                    base.at[idx, "Situacao"] = "Ativo"
+                    alterados.append({
+                        "Matricula": row.get("Matricula", ""),
+                        "Nome": row.get("Nome", ""),
+                        "DataRetorno": retorno_str
+                    })
+            except Exception:
+                continue
+        if alterados:
+            salvar_dados(dados)
+            # Adiciona ao histórico
+            for alt in alterados:
+                registro = {
+                    "DataEvento": datetime.now().strftime("%d/%m/%Y"),
+                    "TipoEvento": "Retorno Automático de Férias",
+                    "Detalhes": f"Funcionário retornou de férias em {alt['DataRetorno']}. Situação alterada para Ativo automaticamente."
+                }
+                # Busca dados completos do funcionário
+                rf = base[base["Matricula"] == alt["Matricula"]]
+                if not rf.empty:
+                    registro.update(rf.iloc[0].to_dict())
+                ih = dados["Historico"].index[dados["Historico"]["Matricula"] == alt["Matricula"]].tolist()
+                if ih:
+                    dados["Historico"].iloc[ih[0]] = registro
+                else:
+                    dados["Historico"] = pd.concat([dados["Historico"], pd.DataFrame([registro])], ignore_index=True)
+            salvar_dados(dados)
+    except Exception:
+        pass
+
 # ====================== INTERFACE PRINCIPAL ======================
 st.set_page_config(page_title="SISTEMA RH COMPLETO", layout="wide", initial_sidebar_state="collapsed")
 st.title("📋 SISTEMA RH COMPLETO")
+
+# Verifica retorno automático de férias no início da sessão (apenas 1x)
+if "ferias_verificado" not in st.session_state:
+    verificar_retorno_ferias_automatico()
+    st.session_state["ferias_verificado"] = True
 
 # ⚠️ LINHA OBRIGATÓRIA: CRIA TODAS AS ABAS ANTES DE USÁ-LAS
 aba1, aba2, aba3, aba4, aba5, aba6, aba7, aba8, aba9, aba10 = st.tabs([
