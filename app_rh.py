@@ -917,62 +917,28 @@ with aba1:
     # Opções do autocomplete: "MATRICULA - NOME"
     opcoes_auto = [f"{row['Matricula']} - {row['Nome']}" for _, row in base_auto.iterrows()]
     
-    col_auto, col_btn = st.columns([4, 1])
-    with col_auto:
-        sel_auto = st.selectbox(
-            "Digite o nome ou matrícula e selecione:",
-            options=[""] + opcoes_auto,
-            index=0,
-            key="autocomplete_func",
-            help="Comece a digitar para filtrar automaticamente"
-        )
-    with col_btn:
-        st.markdown("<br>", unsafe_allow_html=True)
-        carregar = st.button("📝 Carregar para Editar", type="primary", key="btn_carregar_auto")
-    
-    # Se selecionou e clicou em carregar, extrai a matrícula
-    mat_sel = ""
-    if carregar and sel_auto and " - " in sel_auto:
-        mat_sel = sel_auto.split(" - ")[0].strip()
-        st.success(f"✅ Colaborador selecionado: {sel_auto}")
-    
-    # Também mantém busca livre para filtrar a tabela
-    st.markdown("---")
-    busca = st.text_input("🔍 Ou faça uma busca livre (filtra a tabela abaixo):", placeholder="Ex: CARLOS, 1234, SILVA VAZ...")
-    
-    col_f1, col_f2, col_f3 = st.columns(3)
-    with col_f1:
-        filtro_loja = st.selectbox("Filtrar por Loja", ["Todas"] + lista_lojas(), key="filtro_loja_cad")
-    with col_f2:
-        filtro_sit = st.selectbox("Filtrar por Situação", ["Todas"] + SITUACOES, key="filtro_sit_cad")
-    with col_f3:
-        filtro_cargo = st.selectbox("Filtrar por Cargo", ["Todos"] + lista_cargos(), key="filtro_cargo_cad")
-
-    lista = base_auto.copy()
-    if busca.strip():
-        lista = lista[
-            busca_palavras(lista["Matricula"], busca) |
-            busca_palavras(lista["Nome"], busca)
-        ]
-    if filtro_loja != "Todas":
-        lista = lista[lista["Loja"] == filtro_loja.strip()]
-    if filtro_sit != "Todas":
-        lista = lista[lista["Situacao"] == filtro_sit]
-    if filtro_cargo != "Todos":
-        lista = lista[lista["Cargo"] == filtro_cargo.strip()]
-
-    st.dataframe(
-        lista[["Matricula","Nome","Loja","Situacao","Cargo"]],
-        use_container_width=True, hide_index=True
+    # Autocomplete - ao selecionar já carrega automaticamente
+    sel_auto = st.selectbox(
+        "Digite o nome ou matrícula e selecione:",
+        options=[""] + opcoes_auto,
+        index=0,
+        key="autocomplete_func",
+        help="Comece a digitar para filtrar automaticamente"
     )
-
-    # Campo manual de matrícula (caso prefira digitar direto)
-    mat_manual = st.text_input("✏️ Ou digite a Matrícula EXATA para editar / excluir", value=mat_sel, placeholder="Igual coluna A da planilha", key="matricula_manual")
-    mat_sel = mat_manual.strip()
+    
+    # Extrai matrícula se selecionou no autocomplete
+    mat_sel = ""
+    if sel_auto and " - " in sel_auto:
+        mat_sel = sel_auto.split(" - ")[0].strip()
+    
     reg = pd.DataFrame()
     if mat_sel:
         mat_busca = str(mat_sel).strip()
         reg = dados["Base_Dados"][dados["Base_Dados"]["Matricula"] == mat_busca]
+        if not reg.empty:
+            st.success(f"✅ Carregando dados de: {reg.iloc[0]['Nome']} (Matrícula: {mat_sel})")
+        else:
+            st.info("ℹ️ Matrícula não encontrada. Preencha os campos abaixo para cadastrar um novo colaborador.")
 
     val_campo = lambda nome: reg.iloc[0][nome] if not reg.empty else ""
 
@@ -982,7 +948,7 @@ with aba1:
             dt_adm = datetime.strptime(val_campo("Admissao"), "%d/%m/%Y")
             hoje = datetime.now()
             dias_corridos = (hoje - dt_adm).days
-            for prazo in [29, 44, 59, 89]:
+            for prazo in [30, 45, 60, 90]:
                 rest = prazo - dias_corridos
                 if rest > 0:
                     status = f"Faltam {rest} dias"
@@ -1311,7 +1277,7 @@ with aba3:
         try:
             dt_adm = datetime.strptime(str(func["Admissao"]).strip(), "%d/%m/%Y")
             dias = (hoje - dt_adm).days
-            for p in [29,44,59,89]:
+            for p in [30,45,60,90]:
                 if 0 <= p - dias <=10:
                     tabela_exp.append([func["Matricula"], func["Nome"], func["Loja"], f"{p} dias", f"Faltam {p-dias} dias"])
                     break
