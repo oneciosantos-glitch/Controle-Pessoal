@@ -932,9 +932,9 @@ with aba1:
         mat_sel = sel_auto.split(" - ")[0].strip()
         st.success(f"✅ Colaborador selecionado: {sel_auto}")
     
-    # ---------- BUSCA LIVRE E FILTROS ----------
+    # ---------- FILTROS ----------
     st.markdown("---")
-    busca = st.text_input("🔍 Busca livre (filtra a tabela abaixo):", placeholder="Ex: CARLOS, 1234, SILVA VAZ...")
+    st.markdown("**📋 Filtros da Tabela**")
     
     col_f1, col_f2, col_f3 = st.columns(3)
     with col_f1:
@@ -945,11 +945,6 @@ with aba1:
         filtro_cargo = st.selectbox("Filtrar por Cargo", ["Todos"] + lista_cargos(), key="filtro_cargo_cad")
 
     lista = base_auto.copy()
-    if busca.strip():
-        lista = lista[
-            busca_palavras(lista["Matricula"], busca) |
-            busca_palavras(lista["Nome"], busca)
-        ]
     if filtro_loja != "Todas":
         lista = lista[lista["Loja"] == filtro_loja.strip()]
     if filtro_sit != "Todas":
@@ -965,10 +960,6 @@ with aba1:
         lista[["Matricula","Nome","Loja","Situacao","Cargo"]],
         use_container_width=True, hide_index=True
     )
-
-    # Campo manual de matrícula (caso prefira digitar direto)
-    mat_manual = st.text_input("✏️ Digite a Matrícula EXATA para editar / excluir", value=mat_sel, placeholder="Igual coluna A da planilha", key="matricula_manual")
-    mat_sel = mat_manual.strip()
     
     reg = pd.DataFrame()
     if mat_sel:
