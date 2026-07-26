@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 try:
     import matplotlib.pyplot as plt
     MATPLOT = True
@@ -49,10 +50,13 @@ PASTA_DOCS = "Documentos_Lojas"
 PASTA_DOCS_FUNC = "Documentos_Funcionarios"
 PASTA_FOTOS = "Fotos_Funcionarios"
 PASTA_COMPROVANTES = "Comprovantes_Diarias"
+ARQUIVO_COMPRAS = "controle_compras.xlsx"
+PASTA_ANEXOS_COMPRAS = "Anexos_Compras"
 os.makedirs(PASTA_DOCS, exist_ok=True)
 os.makedirs(PASTA_DOCS_FUNC, exist_ok=True)
 os.makedirs(PASTA_FOTOS, exist_ok=True)
 os.makedirs(PASTA_COMPROVANTES, exist_ok=True)
+os.makedirs(PASTA_ANEXOS_COMPRAS, exist_ok=True)
 
 MESES = ["Todos", "jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"]
 
@@ -511,6 +515,89 @@ def exportar_diarias_formatado(df, caminho):
     wb.save(caminho)
     wb.close()
 
+
+
+# ====================== CONTROLE DE COMPRAS ======================
+def carregar_compras():
+    cols_padrao = [
+        "ID", "CLIENTE", "UNIDADE", "TIPO", "MATERIAL", "QUANTIDADE", "UNIDADE_REF",
+        "STATUS", "DATA_PEDIDO", "MES_REFERENCIA", "SEPARADO", "ENVIADO",
+        "ENDERECO", "RESPONSAVEL", "OBSERVACAO", "DATA_CADASTRO", "ANEXO"
+    ]
+    if not os.path.exists(ARQUIVO_COMPRAS):
+        return pd.DataFrame(columns=cols_padrao)
+    try:
+        df = pd.read_excel(ARQUIVO_COMPRAS, dtype=str, keep_default_na=False)
+    except Exception:
+        return pd.DataFrame(columns=cols_padrao)
+    for col in cols_padrao:
+        if col not in df.columns:
+            df[col] = ""
+    df = df[[c for c in cols_padrao if c in df.columns]]
+    return df
+
+def salvar_compras(df_compras):
+    try:
+        with pd.ExcelWriter(ARQUIVO_COMPRAS, engine="openpyxl", mode="w") as f:
+            df_compras.to_excel(f, sheet_name="Compras", index=False)
+    except Exception:
+        pass
+    st.cache_data.clear()
+
+def exportar_compras_formatado(df, caminho):
+    """Exporta DataFrame de compras para Excel com formatação."""
+    df_export = df.copy()
+    df_export.to_excel(caminho, index=False, engine="openpyxl")
+    wb = load_workbook(caminho)
+    ws = wb.active
+    ws.title = "Compras"
+
+    fill_header = PatternFill(start_color="C00000", end_color="C00000", fill_type="solid")
+    font_header = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
+    align_header = Alignment(horizontal="center", vertical="center")
+
+    borda = Border(
+        left=Side(style="thin", color="000000"),
+        right=Side(style="thin", color="000000"),
+        top=Side(style="thin", color="000000"),
+        bottom=Side(style="thin", color="000000")
+    )
+
+    font_data = Font(name="Calibri", size=11, bold=False, color="000000")
+    align_data_center = Alignment(horizontal="center", vertical="center")
+    align_data_left = Alignment(horizontal="left", vertical="center")
+
+    headers_app = list(df_export.columns)
+    for col_idx, header in enumerate(headers_app, 1):
+        cell = ws.cell(row=1, column=col_idx)
+        cell.fill = fill_header
+        cell.font = font_header
+        cell.alignment = align_header
+        cell.border = borda
+
+    for row in ws.iter_rows(min_row=2, max_row=ws.max_row):
+        for cell in row:
+            cell.border = borda
+            cell.font = font_data
+            header = ws.cell(row=1, column=cell.column).value
+            if header and ("MATERIAL" in str(header).upper() or "OBSERVACAO" in str(header).upper() or "ENDERECO" in str(header).upper()):
+                cell.alignment = align_data_left
+            else:
+                cell.alignment = align_data_center
+
+    larguras = {
+        "ID": 8, "CLIENTE": 18, "UNIDADE": 30, "TIPO": 14, "MATERIAL": 35,
+        "QUANTIDADE": 12, "UNIDADE_REF": 10, "STATUS": 16, "DATA_PEDIDO": 14,
+        "MES_REFERENCIA": 14, "SEPARADO": 12, "ENVIADO": 12, "ENDERECO": 40,
+        "RESPONSAVEL": 20, "OBSERVACAO": 35, "DATA_CADASTRO": 18, "ANEXO": 35
+    }
+    for col_idx, header in enumerate(headers_app, 1):
+        col_letter = get_column_letter(col_idx)
+        ws.column_dimensions[col_letter].width = larguras.get(header, 18)
+
+    wb.save(caminho)
+    wb.close()
+
 # ====================== BACKUP / RESTORE ======================
 import zipfile
 import io
@@ -520,11 +607,11 @@ def criar_backup_zip():
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
         # Arquivos Excel principais
-        for arq in [ARQUIVO, ARQUIVO_DIARIAS]:
+        for arq in [ARQUIVO, ARQUIVO_DIARIAS, ARQUIVO_COMPRAS]:
             if os.path.exists(arq):
                 zf.write(arq, arq)
-        # Pastas de documentos, fotos e comprovantes
-        for pasta in [PASTA_DOCS, PASTA_DOCS_FUNC, PASTA_FOTOS, PASTA_COMPROVANTES]:
+        # Pastas de documentos, fotos, comprovantes e anexos de compras
+        for pasta in [PASTA_DOCS, PASTA_DOCS_FUNC, PASTA_FOTOS, PASTA_COMPROVANTES, PASTA_ANEXOS_COMPRAS]:
             if os.path.exists(pasta):
                 for root, dirs, files in os.walk(pasta):
                     for file in files:
@@ -832,8 +919,8 @@ if "afastamentos_verificado" not in st.session_state:
     st.session_state["afastamentos_verificado"] = True
 
 # ⚠️ LINHA OBRIGATÓRIA: CRIA TODAS AS ABAS ANTES DE USÁ-LAS
-aba1, aba2, aba3, aba4, aba5, aba6, aba7, aba8, aba9, aba10 = st.tabs([
-    "Cadastro", "Painel", "Prazos e Férias", "Histórico", "Relatórios", "📎 Documentos", "⚙️ Lojas e Cargos", "💰 CONTROLE DE DIÁRIAS", "🗺️ GUIA VIAGEM", "💾 Backup"
+aba1, aba2, aba3, aba4, aba5, aba6, aba7, aba8, aba9, aba10, aba11 = st.tabs([
+    "Cadastro", "Painel", "Prazos e Férias", "Histórico", "Relatórios", "📎 Documentos", "⚙️ Lojas e Cargos", "💰 CONTROLE DE DIÁRIAS", "🗺️ GUIA VIAGEM", "📦 COMPRAS MATERIAIS/EPI", "💾 Backup"
 ])
 
 
@@ -852,6 +939,24 @@ def geocodificar(endereco):
     except Exception:
         pass
     return None, None
+
+def reverse_geocodificar(lat, lon):
+    """Converte latitude/longitude em endereço usando Nominatim."""
+    try:
+        url = "https://nominatim.openstreetmap.org/reverse"
+        params = {"lat": lat, "lon": lon, "format": "json", "zoom": 10}
+        headers = {"User-Agent": "RHApp/1.0"}
+        resp = requests.get(url, params=params, headers=headers, timeout=15)
+        dados_geo = resp.json()
+        if dados_geo and "address" in dados_geo:
+            addr = dados_geo["address"]
+            cidade = addr.get("city") or addr.get("town") or addr.get("village") or addr.get("county") or ""
+            estado = addr.get("state") or ""
+            pais = addr.get("country") or ""
+            return cidade, estado, pais, dados_geo.get("display_name", "")
+    except Exception:
+        pass
+    return None, None, None, None
 
 def calcular_rota(lat1, lon1, lat2, lon2):
     """Calcula distância, tempo e geometria da rota via OSRM."""
@@ -2080,36 +2185,111 @@ with aba9:
             pass
         return []
 
-    def input_endereco(label, key_prefix):
+    def input_endereco(label, key_prefix, pais_default=None, estado_default=None, cidade_default=None):
         """Monta os inputs de endereço com combos de país, estado e cidade."""
         st.markdown(f"**{label}**")
-        pais = st.selectbox(f"🌍 País", PAÍSES, key=f"{key_prefix}_pais")
+        pais_index = PAÍSES.index(pais_default) if pais_default and pais_default in PAÍSES else 0
+        pais = st.selectbox(f"🌍 País", PAÍSES, index=pais_index, key=f"{key_prefix}_pais")
         if pais == "Brasil":
-            estado = st.selectbox(f"🏛️ Estado", ESTADOS_BR, key=f"{key_prefix}_estado")
+            estado_idx = 0
+            if estado_default:
+                for i, e in enumerate(ESTADOS_BR):
+                    if estado_default.upper() in e.upper():
+                        estado_idx = i
+                        break
+            estado = st.selectbox(f"🏛️ Estado", ESTADOS_BR, index=estado_idx, key=f"{key_prefix}_estado")
             estado_limp = estado.split(" (")[0] if "(" in estado else estado
             uf_sigla = estado.split("(")[1].replace(")", "").strip() if "(" in estado else ""
             cidades = buscar_cidades_ibge(uf_sigla) if uf_sigla else []
+            cidade_idx = 0
+            if cidade_default and cidades:
+                for i, c in enumerate(cidades):
+                    if cidade_default.upper() in c.upper():
+                        cidade_idx = i
+                        break
             if cidades:
-                cidade = st.selectbox(f"🏙️ Cidade", cidades, key=f"{key_prefix}_cidade")
+                cidade = st.selectbox(f"🏙️ Cidade", cidades, index=cidade_idx, key=f"{key_prefix}_cidade")
             else:
-                cidade = st.text_input(f"🏙️ Cidade", placeholder="Ex: Belém", key=f"{key_prefix}_cidade")
+                cidade = st.text_input(f"🏙️ Cidade", value=cidade_default or "", placeholder="Ex: Belém", key=f"{key_prefix}_cidade")
         elif pais == "Estados Unidos":
-            estado = st.selectbox(f"🏛️ Estado", ESTADOS_US, key=f"{key_prefix}_estado")
+            estado_idx = 0
+            if estado_default:
+                for i, e in enumerate(ESTADOS_US):
+                    if estado_default.upper() in e.upper():
+                        estado_idx = i
+                        break
+            estado = st.selectbox(f"🏛️ Estado", ESTADOS_US, index=estado_idx, key=f"{key_prefix}_estado")
             estado_limp = estado.split(" (")[0] if "(" in estado else estado
-            cidade = st.text_input(f"🏙️ Cidade", placeholder="Ex: Nova York", key=f"{key_prefix}_cidade")
+            cidade = st.text_input(f"🏙️ Cidade", value=cidade_default or "", placeholder="Ex: Nova York", key=f"{key_prefix}_cidade")
         elif pais == "México":
-            estado = st.selectbox(f"🏛️ Estado", ESTADOS_MX, key=f"{key_prefix}_estado")
+            estado_idx = 0
+            if estado_default:
+                for i, e in enumerate(ESTADOS_MX):
+                    if estado_default.upper() in e.upper():
+                        estado_idx = i
+                        break
+            estado = st.selectbox(f"🏛️ Estado", ESTADOS_MX, index=estado_idx, key=f"{key_prefix}_estado")
             estado_limp = estado
-            cidade = st.text_input(f"🏙️ Cidade", placeholder="Ex: Cidade do México", key=f"{key_prefix}_cidade")
+            cidade = st.text_input(f"🏙️ Cidade", value=cidade_default or "", placeholder="Ex: Cidade do México", key=f"{key_prefix}_cidade")
         else:
-            estado_limp = st.text_input(f"🏛️ Estado / Província", key=f"{key_prefix}_estado")
-            cidade = st.text_input(f"🏙️ Cidade", placeholder="Ex: Belém", key=f"{key_prefix}_cidade")
+            estado_limp = st.text_input(f"🏛️ Estado / Província", value=estado_default or "", key=f"{key_prefix}_estado")
+            cidade = st.text_input(f"🏙️ Cidade", value=cidade_default or "", placeholder="Ex: Belém", key=f"{key_prefix}_cidade")
         endereco = f"{cidade}, {estado_limp}, {pais}" if str(cidade).strip() and str(estado_limp).strip() else ""
         return endereco, pais
 
+    # --- Leitura de localização atual via query params ---
+    qp = st.query_params
+    loc_lat = qp.get("loc_lat", [None])[0] if isinstance(qp.get("loc_lat"), list) else qp.get("loc_lat")
+    loc_lon = qp.get("loc_lon", [None])[0] if isinstance(qp.get("loc_lon"), list) else qp.get("loc_lon")
+    loc_pais_default = None
+    loc_estado_default = None
+    loc_cidade_default = None
+    if loc_lat and loc_lon:
+        with st.spinner("Obtendo endereço da localização atual..."):
+            loc_cidade, loc_estado, loc_pais, _ = reverse_geocodificar(float(loc_lat), float(loc_lon))
+            if loc_pais and "Brasil" in loc_pais:
+                loc_pais_default = "Brasil"
+                loc_estado_default = loc_estado
+                loc_cidade_default = loc_cidade
+            elif loc_pais and "United States" in loc_pais:
+                loc_pais_default = "Estados Unidos"
+                loc_estado_default = loc_estado
+                loc_cidade_default = loc_cidade
+            elif loc_pais and "Mexico" in loc_pais:
+                loc_pais_default = "México"
+                loc_estado_default = loc_estado
+                loc_cidade_default = loc_cidade
+            else:
+                loc_pais_default = loc_pais
+                loc_estado_default = loc_estado
+                loc_cidade_default = loc_cidade
+
     col_o, col_d = st.columns(2)
     with col_o:
-        origem_str, pais_o = input_endereco("📍 ORIGEM", "orig")
+        origem_str, pais_o = input_endereco("📍 ORIGEM", "orig", pais_default=loc_pais_default, estado_default=loc_estado_default, cidade_default=loc_cidade_default)
+        st.markdown("")
+        if st.button("📍 Usar minha localização atual", key="btn_localizacao_atual"):
+            components.html("""
+                <script>
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(
+                        function(position) {
+                            var lat = position.coords.latitude;
+                            var lon = position.coords.longitude;
+                            var url = new URL(window.location.href);
+                            url.searchParams.set('loc_lat', lat);
+                            url.searchParams.set('loc_lon', lon);
+                            window.location.href = url.toString();
+                        },
+                        function(error) {
+                            alert('Não foi possível obter a localização: ' + error.message);
+                        }
+                    );
+                } else {
+                    alert('Geolocalização não suportada neste navegador.');
+                }
+                </script>
+            """, height=0)
     with col_d:
         destino_str, pais_d = input_endereco("📍 DESTINO", "dest")
 
@@ -2146,6 +2326,16 @@ with aba9:
                             st.metric("⏱️ Tempo Estimado", f"{horas}h {mins}min")
                         with c3:
                             st.metric("💰 Pedágio", "Consultar via app")
+
+                        # Botões para abrir no Google Maps e Waze
+                        st.markdown("---")
+                        gm_url = f"https://www.google.com/maps/dir/?api=1&origin={lat1},{lon1}&destination={lat2},{lon2}&travelmode=driving"
+                        waze_url = f"https://waze.com/ul?ll={lat2},{lon2}&navigate=yes&q={lat2},{lon2}"
+                        bg1, bg2 = st.columns(2)
+                        with bg1:
+                            st.markdown(f'<a href="{gm_url}" target="_blank"><button style="width:100%;padding:10px;background:#4285F4;color:white;border:none;border-radius:5px;font-size:16px;cursor:pointer;">🗺️ Abrir no Google Maps</button></a>', unsafe_allow_html=True)
+                        with bg2:
+                            st.markdown(f'<a href="{waze_url}" target="_blank"><button style="width:100%;padding:10px;background:#33ccff;color:white;border:none;border-radius:5px;font-size:16px;cursor:pointer;">🚙 Abrir no Waze</button></a>', unsafe_allow_html=True)
 
                         # Combustível
                         st.markdown("---")
@@ -2252,6 +2442,31 @@ with aba9:
                         # Instruções passo a passo
                         st.markdown("---")
                         st.subheader("📝 Instruções de Rota (passo a passo)")
+                        MANOBRAS = {
+                            "turn": "Vire",
+                            "new name": "Continue em",
+                            "depart": "Saia de",
+                            "arrive": "Chegue em",
+                            "merge": "Acesse",
+                            "on ramp": "Entre na rampa",
+                            "off ramp": "Saia na rampa",
+                            "fork": "Na bifurcação",
+                            "end of road": "No fim da via",
+                            "continue": "Continue em",
+                            "roundabout": "Na rotatória",
+                            "rotary": "Na rotatória",
+                            "roundabout turn": "Na rotatória",
+                            "exit roundabout": "Saia da rotatória",
+                            "notification": "Atenção",
+                            "uturn": "Retorne",
+                            "sharp right": "Curva fechada à direita",
+                            "right": "À direita",
+                            "slight right": "Leve à direita",
+                            "straight": "Em frente",
+                            "slight left": "Leve à esquerda",
+                            "left": "À esquerda",
+                            "sharp left": "Curva fechada à esquerda",
+                        }
                         try:
                             url = f"http://router.project-osrm.org/route/v1/driving/{lon1},{lat1};{lon2},{lat2}"
                             params = {"overview": "false", "steps": "true"}
@@ -2263,8 +2478,27 @@ with aba9:
                                 for step in legs.get("steps", []):
                                     nome = step.get("name", "")
                                     dist = step.get("distance", 0)
-                                    instr = step.get("maneuver", {}).get("type", "continue")
-                                    passos.append(f"• {instr.upper()}: siga em **{nome}** por `{dist/1000:.1f} km`")
+                                    manobra = step.get("maneuver", {})
+                                    tipo = manobra.get("type", "continue")
+                                    modifier = manobra.get("modifier", "")
+                                    tipo_pt = MANOBRAS.get(tipo, tipo.replace("_", " ").title())
+                                    mod_pt = MANOBRAS.get(modifier, modifier.replace("_", " ").title()) if modifier else ""
+                                    if tipo in ("turn", "fork", "end of road", "merge", "on ramp", "off ramp") and mod_pt:
+                                        instrucao = f"• **{tipo_pt} {mod_pt}**"
+                                    elif tipo in ("roundabout", "rotary", "roundabout turn"):
+                                        exit_num = manobra.get("exit", "")
+                                        instrucao = f"• **{tipo_pt}**" + (f" (saída {exit_num})" if exit_num else "")
+                                    elif tipo == "depart":
+                                        instrucao = f"• **{tipo_pt}** {nome}"
+                                    elif tipo == "arrive":
+                                        instrucao = f"• **{tipo_pt}** {nome}"
+                                    else:
+                                        instrucao = f"• **{tipo_pt}** em {nome}"
+                                    if nome and tipo not in ("depart", "arrive"):
+                                        instrucao += f" por `{dist/1000:.1f} km`"
+                                    elif dist > 0:
+                                        instrucao += f" — `{dist/1000:.1f} km`"
+                                    passos.append(instrucao)
                                 if passos:
                                     for p in passos[:25]:
                                         st.markdown(p)
@@ -2371,8 +2605,443 @@ with aba9:
                     except Exception as e:
                         st.warning(f"Não foi possível exibir o mapa: {e}")
 
-# ================ ABA 10 - BACKUP / RESTAURAÇÃO ================
+
+# ================ ABA 10 - COMPRAS MATERIAIS/EPI ================
 with aba10:
+    st.subheader("📦 CONTROLE DE COMPRAS DE MATERIAIS E EPI")
+    st.info("Cadastre pedidos de materiais e EPI por cliente/unidade. Gere planilhas nos formatos padrão de cada cliente.")
+
+    df_compras = carregar_compras()
+
+    # Dicionário de clientes e unidades
+    CLIENTES_UNIDADES = {
+        "Assaí Atacadista": [
+            "Assaí Atacadista Batista Campos-PA",
+            "Assaí Atacadista Almirante Barroso-PA",
+            "Assaí Atacadista Castanhal-PA",
+            "Assaí Atacadista Ananindeua-PA",
+            "Assaí Atacadista Augusto Monte Negro-PA",
+            "Assaí Atacadista Boa Vista-RR",
+            "Assaí Atacadista Manaus-AM",
+            "Assaí Atacadista Macapá-AP",
+            "Assaí Atacadista Belém-PA",
+        ],
+        "Smart Fit": [
+            "Smart Fit Shopping Manoa-AM",
+            "Smart Fit Shopping Cidade Leste-AM",
+            "Smart Fit Macapá Shopping",
+            "Smart Fit Shopping Grande Circular-AM",
+            "Smart Fit Shopping Via Norte-AM",
+            "Smart Fit Cidade Nova-AM",
+            "Smart Fit Parque Mosaico-AM",
+            "Smart Fit Cachoeirinha-AM",
+            "Smart Fit Flores-AM",
+            "Smart Fit Ponta Negra-AM",
+            "Smart Fit Nova Porto Velho-RO",
+            "Smart Fit Porto Velho Flodoaldo-RO",
+            "Smart Fit Alvorada-AM",
+            "Smart Fit Novo Aleixo-AM",
+            "Smart Fit São José do Operário-AM",
+            "Smart Fit Santana Macapá",
+            "Smart Fit Toequato Tapajós-AM",
+        ],
+        "Self Fit": [
+            "Self Fit Hiper DB Ponta Negra-AM",
+            "Self Fit Manaus Plaza Shopping-AM",
+            "Self Fit Vieira Alves-AM",
+        ],
+    }
+
+    ENDERECOS_UNIDADES = {
+        "Self Fit Hiper DB Ponta Negra-AM": "Av. Coronel Teixeira, 7687 - Compensa, Manaus - AM, 69030-480",
+        "Smart Fit Toequato Tapajós-AM": "Av. Torquato Tapajós, 2700 - Flores, Manaus - AM, 69058-255",
+    }
+
+    CATALOGOS = {
+        "Assaí Atacadista": [
+            "Armação Mop Pó 1,20 cm", "Starlock Frange 510mm de Aço", "Armação Mop Pó 60 cm",
+            "Borracha Organizadora Carrinho Funcional", "Carrinho funcional kit completo",
+            "Carro coletor de lixo 200L", "Disco 510 mm - Marron Remoção", "Disco 510 mm - Preto",
+            "Disco 510 mm - Verde", "Disco 510 mm - Vermelho", "Disco champanhe para Polidora",
+            "Disco pelo de porco para Polidora", "Água Sanitária", "Desinfetante", "Detergente",
+            "Limpador Multiuso", "Saco de Lixo 100L", "Saco de Lixo 200L", "Pano de Chão",
+            "Refil Mop Água", "Refil Mop Pó", "Vassoura", "Rodo", "Pá de Lixo",
+        ],
+        "Smart Fit": [
+            "Água Sanitária", "Aspirador Semi-Industrial 23L", "Balde 15L", "Balde 6L",
+            "Balde Espremedor Completo", "Placas Sinalizadora", "Disco Vermelho 510",
+            "Enceradeira Industrial", "Escova de Mão", "Escova Sanitária", "Esponja Dupla Face",
+            "Extensão de 30 m", "Fibras de Limpeza Pesada", "Flanelas",
+            "Kit Limpa Vidro 2 em 1 Bralimpia", "Cabo de Alumínio sem Rosca",
+            "Limpa Tudo (Mini Lok)", "Refil Mop Água", "Refil Mop Pó", "Detergente",
+            "Desinfetante", "Limpador Multiuso", "Saco de Lixo 50L", "Pano de Chão",
+        ],
+        "Self Fit": [
+            "Aspirador de Pó e Bateria sem Fio", "Baude Espremedor", "Refil Mop Água",
+            "Refil Mop Pó", "Placas Sinalizadora", "Enceradeira Industrial",
+            "Kit Limpa Vidro 2 em 1 Bralimpia", "Pá Coletora de Lixo", "Pulverizador",
+            "Cesta Multiuso", "Detergente", "Desinfetante", "Limpador Multiuso",
+            "Saco de Lixo 50L", "Pano de Chão", "Vassoura", "Rodo",
+        ],
+    }
+
+    CATALOGOS_EPI = {
+        "Todos": [
+            "Botas", "Luva Látex", "Óculos de Proteção", "Luva de Vinil",
+            "Máscara de Proteção", "Protetor Auricular (Plug)", "Protetor Tipo Concha",
+            "Luva para Jardineiro", "Avental de Raspa", "Viseira", "Perneira",
+            "Meia Térmica", "Japona Térmica", "Calça Térmica", "Luvas Térmicas",
+            "Capuz Térmico", "Avental Térmico", "Luva de Couro", "Cinto de Segurança",
+            "Capacete", "Colete Refletivo", "Máscara PFF2", "Protetor Facial",
+        ],
+    }
+
+    # ---------- FILTROS E RESUMO ----------
+    st.markdown("---")
+    st.subheader("📊 VISUALIZAR PEDIDOS")
+
+    col_f1, col_f2, col_f3, col_f4 = st.columns(4)
+    with col_f1:
+        filtro_cliente_c = st.selectbox("Cliente", ["Todos"] + list(CLIENTES_UNIDADES.keys()), key="filtro_cliente_c")
+    with col_f2:
+        if filtro_cliente_c != "Todos":
+            filtro_unidade_c = st.selectbox("Unidade", ["Todas"] + CLIENTES_UNIDADES[filtro_cliente_c], key="filtro_unidade_c")
+        else:
+            todas_unidades = [u for lst in CLIENTES_UNIDADES.values() for u in lst]
+            filtro_unidade_c = st.selectbox("Unidade", ["Todas"] + todas_unidades, key="filtro_unidade_c")
+    with col_f3:
+        filtro_tipo_c = st.selectbox("Tipo", ["Todos", "Materiais", "EPI"], key="filtro_tipo_c")
+    with col_f4:
+        filtro_status_c = st.selectbox("Status", ["Todos", "PENDENTE", "SEPARADO", "ENVIADO", "ENTREGUE"], key="filtro_status_c")
+
+    df_filtrado_c = df_compras.copy()
+    if filtro_cliente_c != "Todos":
+        df_filtrado_c = df_filtrado_c[df_filtrado_c["CLIENTE"] == filtro_cliente_c]
+    if filtro_unidade_c != "Todas":
+        df_filtrado_c = df_filtrado_c[df_filtrado_c["UNIDADE"] == filtro_unidade_c]
+    if filtro_tipo_c != "Todos":
+        df_filtrado_c = df_filtrado_c[df_filtrado_c["TIPO"] == filtro_tipo_c.upper()]
+    if filtro_status_c != "Todos":
+        df_filtrado_c = df_filtrado_c[df_filtrado_c["STATUS"] == filtro_status_c]
+
+    if not df_filtrado_c.empty:
+        col_r1, col_r2, col_r3, col_r4 = st.columns(4)
+        with col_r1:
+            st.metric("📦 Total Pedidos", len(df_filtrado_c))
+        with col_r2:
+            st.metric("📍 Clientes", df_filtrado_c["CLIENTE"].nunique())
+        with col_r3:
+            st.metric("🏢 Unidades", df_filtrado_c["UNIDADE"].nunique())
+        with col_r4:
+            st.metric("📋 Itens", df_filtrado_c["QUANTIDADE"].apply(lambda x: int(x) if str(x).isdigit() else 0).sum())
+
+        st.markdown("---")
+        st.subheader("📝 EDITAR PEDIDOS (DUPLA CLIQUE)")
+        colunas_editaveis = ["STATUS", "SEPARADO", "ENVIADO", "QUANTIDADE", "OBSERVACAO"]
+        df_editor_c = df_filtrado_c.copy()
+        edited_c = st.data_editor(
+            df_editor_c,
+            use_container_width=True,
+            num_rows="dynamic",
+            column_config={
+                "STATUS": st.column_config.SelectboxColumn("STATUS", options=["PENDENTE", "SEPARADO", "ENVIADO", "ENTREGUE"]),
+                "SEPARADO": st.column_config.TextColumn("SEPARADO"),
+                "ENVIADO": st.column_config.TextColumn("ENVIADO"),
+                "QUANTIDADE": st.column_config.NumberColumn("QUANTIDADE", step=1),
+                "OBSERVACAO": st.column_config.TextColumn("OBSERVACAO"),
+            },
+            disabled=[c for c in df_editor_c.columns if c not in colunas_editaveis],
+            key="editor_compras"
+        )
+        if st.button("💾 SALVAR ALTERAÇÕES", type="primary", key="salvar_edicao_compras"):
+            for idx in edited_c.index:
+                for col in colunas_editaveis:
+                    if col in edited_c.columns and col in df_compras.columns:
+                        df_compras.at[idx, col] = str(edited_c.at[idx, col])
+            salvar_compras(df_compras)
+            st.success("✅ Alterações salvas!")
+            st.rerun()
+    else:
+        st.info("Nenhum pedido encontrado com os filtros selecionados.")
+
+    # ---------- CADASTRAR NOVO PEDIDO ----------
+    st.markdown("---")
+    st.subheader("➕ CADASTRAR NOVO PEDIDO")
+
+    cliente_sel = st.selectbox("Cliente *", list(CLIENTES_UNIDADES.keys()), key="novo_cliente_c")
+    unidade_sel = st.selectbox("Unidade *", CLIENTES_UNIDADES[cliente_sel], key="novo_unidade_c")
+    tipo_sel = st.selectbox("Tipo *", ["Materiais", "EPI"], key="novo_tipo_c")
+
+    # Itens do pedido
+    if "itens_compra" not in st.session_state:
+        st.session_state.itens_compra = [{"material": "", "qtde": 1, "ref": "UN."}]
+
+    st.markdown("**Itens do Pedido:**")
+    catalogo = CATALOGOS_EPI["Todos"] if tipo_sel == "EPI" else CATALOGOS.get(cliente_sel, CATALOGOS["Smart Fit"])
+    for i, item in enumerate(st.session_state.itens_compra):
+        cols_item = st.columns([3, 1, 1, 1])
+        with cols_item[0]:
+            st.session_state.itens_compra[i]["material"] = st.selectbox(
+                f"Material {i+1}", catalogo + ["OUTRO"],
+                key=f"mat_c_{i}",
+                index=catalogo.index(item["material"]) if item["material"] in catalogo else (len(catalogo) if item["material"] == "OUTRO" else 0)
+            )
+            if st.session_state.itens_compra[i]["material"] == "OUTRO":
+                st.session_state.itens_compra[i]["material"] = st.text_input(f"Descrição Material {i+1}", key=f"mat_outro_c_{i}")
+        with cols_item[1]:
+            st.session_state.itens_compra[i]["qtde"] = st.number_input(f"Qtd {i+1}", min_value=1, step=1, value=int(item["qtde"]), key=f"qtde_c_{i}")
+        with cols_item[2]:
+            st.session_state.itens_compra[i]["ref"] = st.selectbox(f"Ref {i+1}", ["UN.", "CX", "KG", "L", "MT", "PAR", "PC"], key=f"ref_c_{i}")
+        with cols_item[3]:
+            if st.button("🗑️", key=f"rm_item_c_{i}"):
+                st.session_state.itens_compra.pop(i)
+                st.rerun()
+
+    if st.button("➕ Adicionar Item", key="add_item_compra"):
+        st.session_state.itens_compra.append({"material": "", "qtde": 1, "ref": "UN."})
+        st.rerun()
+
+    with st.form("nova_compra", clear_on_submit=True):
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            mes_ref = st.selectbox("Mês de Referência *", MESES[1:], key="novo_mes_ref_c")
+            data_pedido = st.text_input("Data do Pedido (DD/MM/AAAA)", value=datetime.now().strftime("%d/%m/%Y"), key="novo_data_ped_c")
+        with c2:
+            separado = st.text_input("Separado por", key="novo_sep_c")
+            enviado = st.text_input("Enviado por", key="novo_env_c")
+        with c3:
+            responsavel = st.text_input("Responsável", key="novo_resp_c")
+            status_sel = st.selectbox("Status", ["PENDENTE", "SEPARADO", "ENVIADO", "ENTREGUE"], key="novo_status_c")
+        endereco_padrao = ENDERECOS_UNIDADES.get(unidade_sel, "")
+        endereco = st.text_area("Endereço de Entrega", value=endereco_padrao, key="novo_end_c")
+        observacao = st.text_area("Observação", key="novo_obs_c")
+        submitted = st.form_submit_button("💾 SALVAR PEDIDO", type="primary")
+        if submitted:
+            erros = []
+            if not cliente_sel.strip(): erros.append("Cliente")
+            if not unidade_sel.strip(): erros.append("Unidade")
+            if not mes_ref.strip(): erros.append("Mês de Referência")
+            itens_validos = [it for it in st.session_state.itens_compra if str(it.get("material", "")).strip()]
+            if not itens_validos: erros.append("Pelo menos um material")
+            if erros:
+                st.error("❌ Campos obrigatórios: " + ", ".join(erros))
+            else:
+                novo_id = 1
+                if not df_compras.empty and "ID" in df_compras.columns:
+                    try:
+                        novo_id = max([int(x) for x in df_compras["ID"].astype(str) if x.isdigit()]) + 1
+                    except Exception:
+                        novo_id = len(df_compras) + 1
+                for it in itens_validos:
+                    nova_linha = {
+                        "ID": str(novo_id),
+                        "CLIENTE": cliente_sel,
+                        "UNIDADE": unidade_sel,
+                        "TIPO": tipo_sel.upper(),
+                        "MATERIAL": str(it["material"]).strip().upper(),
+                        "QUANTIDADE": str(it["qtde"]),
+                        "UNIDADE_REF": str(it["ref"]).strip().upper(),
+                        "STATUS": status_sel,
+                        "DATA_PEDIDO": data_pedido.strip(),
+                        "MES_REFERENCIA": mes_ref,
+                        "SEPARADO": separado.strip().upper(),
+                        "ENVIADO": enviado.strip().upper(),
+                        "ENDERECO": endereco.strip(),
+                        "RESPONSAVEL": responsavel.strip().upper(),
+                        "OBSERVACAO": observacao.strip().upper(),
+                        "DATA_CADASTRO": datetime.now().strftime("%d/%m/%Y %H:%M"),
+                        "ANEXO": ""
+                    }
+                    df_compras = pd.concat([df_compras, pd.DataFrame([nova_linha])], ignore_index=True)
+                salvar_compras(df_compras)
+                st.session_state.itens_compra = [{"material": "", "qtde": 1, "ref": "UN."}]
+                st.success(f"✅ Pedido #{novo_id} cadastrado com sucesso!")
+                st.rerun()
+
+    # ---------- GERENCIAR ANEXOS ----------
+    st.markdown("---")
+    st.subheader("📎 GERENCIAR ANEXOS")
+    if not df_compras.empty:
+        opcoes_pedido = []
+        for i, row in df_compras.iterrows():
+            label = f"[{row.get('ID', i)}] {row.get('CLIENTE', '')} | {row.get('UNIDADE', '')} | {row.get('MATERIAL', '')} | Qtd: {row.get('QUANTIDADE', '')}"
+            opcoes_pedido.append((i, label))
+        sel_idx = st.selectbox("Selecione o item", options=range(len(opcoes_pedido)), format_func=lambda x: opcoes_pedido[x][1], key="sel_anexo_c")
+        if sel_idx is not None:
+            idx_anexo = opcoes_pedido[sel_idx][0]
+            anexo_atual = str(df_compras.at[idx_anexo, "ANEXO"])
+            if anexo_atual and os.path.exists(anexo_atual):
+                st.success(f"✅ Anexo: {os.path.basename(anexo_atual)}")
+                with open(anexo_atual, "rb") as fa:
+                    st.download_button("⬇️ Baixar Anexo", fa, file_name=os.path.basename(anexo_atual), key=f"dl_anexo_{idx_anexo}")
+                if st.button("🗑️ Remover Anexo", key=f"rm_anexo_{idx_anexo}"):
+                    os.remove(anexo_atual)
+                    df_compras.at[idx_anexo, "ANEXO"] = ""
+                    salvar_compras(df_compras)
+                    st.success("Anexo removido!")
+                    st.rerun()
+            else:
+                st.info("Nenhum anexo para este item.")
+            arq_anexo = st.file_uploader("Anexar arquivo (PDF, JPG, PNG, XLSX, DOCX)", type=["pdf", "jpg", "png", "xlsx", "docx"], key=f"up_anexo_{idx_anexo}")
+            if arq_anexo and st.button("📤 ENVIAR ANEXO", type="primary", key=f"btn_anexo_{idx_anexo}"):
+                ext = os.path.splitext(arq_anexo.name)[1]
+                nome_anexo = f"COMPRA_{df_compras.at[idx_anexo, 'ID']}_{datetime.now().strftime('%Y%m%d%H%M%S')}{ext}"
+                cam_anexo = os.path.join(PASTA_ANEXOS_COMPRAS, nome_anexo)
+                with open(cam_anexo, "wb") as f: f.write(arq_anexo.read())
+                df_compras.at[idx_anexo, "ANEXO"] = cam_anexo
+                salvar_compras(df_compras)
+                st.success("✅ Anexo enviado!")
+                st.rerun()
+    else:
+        st.info("Nenhum pedido cadastrado.")
+
+    # ---------- EXPORTAR PARA EXCEL ----------
+    st.markdown("---")
+    st.subheader("📤 EXPORTAR PARA EXCEL")
+    if not df_filtrado_c.empty:
+        nome_arq_c = f"Compras_{filtro_cliente_c}_{filtro_unidade_c}_{datetime.now().strftime('%Y%m%d')}.xlsx".replace("/", "-").replace(" ", "_")
+        exportar_compras_formatado(df_filtrado_c, nome_arq_c)
+        with open(nome_arq_c, "rb") as f:
+            st.download_button("⬇️ BAIXAR EXCEL", f, file_name=nome_arq_c)
+        os.remove(nome_arq_c)
+    else:
+        st.info("Filtre os dados para exportar.")
+
+    # ---------- SOLICITAR PEDIDO POR PLANILHA (UPLOAD) ----------
+    st.markdown("---")
+    st.subheader("📥 SOLICITAR PEDIDO POR PLANILHA")
+    st.info("Faça upload de uma planilha de pedido no formato do cliente (Smart Fit, Self Fit ou Assaí) para importar automaticamente.")
+
+    arq_pedido = st.file_uploader("Upload da planilha de pedido", type=["xlsx", "xls", "csv"], key="upload_pedido_c")
+    if arq_pedido is not None:
+        try:
+            df_upload = pd.read_excel(arq_pedido, header=None, dtype=str, keep_default_na=False)
+            st.write("Pré-visualização (primeiras 20 linhas):")
+            st.dataframe(df_upload.head(20), use_container_width=True)
+
+            # Tentar detectar o cliente
+            texto_topo = " ".join(str(v).upper() for v in df_upload.iloc[:5, 0].tolist() if v)
+            cliente_detectado = None
+            if "SELF FIT" in texto_topo:
+                cliente_detectado = "Self Fit"
+            elif "SMART FIT" in texto_topo:
+                cliente_detectado = "Smart Fit"
+            elif "ASSAÍ" in texto_topo or "ASSAI" in texto_topo:
+                cliente_detectado = "Assaí Atacadista"
+
+            if cliente_detectado:
+                st.success(f"📌 Cliente detectado: **{cliente_detectado}**")
+                unidades_possiveis = CLIENTES_UNIDADES.get(cliente_detectado, [])
+                unidade_detectada = None
+                for u in unidades_possiveis:
+                    # Remove acentos e compara
+                    u_norm = u.upper().replace("-", " ").replace("Á", "A").replace("É", "E").replace("Í", "I").replace("Ó", "O").replace("Ú", "U").replace("Ã", "A").replace("Õ", "O").replace("Ç", "C")
+                    t_norm = texto_topo.replace("-", " ").replace("Á", "A").replace("É", "E").replace("Í", "I").replace("Ó", "O").replace("Ú", "U").replace("Ã", "A").replace("Õ", "O").replace("Ç", "C")
+                    if u_norm in t_norm:
+                        unidade_detectada = u
+                        break
+                if unidade_detectada:
+                    st.success(f"📌 Unidade detectada: **{unidade_detectada}**")
+                else:
+                    unidade_detectada = st.selectbox("Selecione a unidade manualmente", unidades_possiveis, key="up_unidade_c")
+
+                tipo_detectado = "Materiais"
+                if "EPI" in texto_topo or "EQUIPAMENTO DE PROTECAO" in texto_topo:
+                    tipo_detectado = "EPI"
+                tipo_upload = st.selectbox("Tipo", ["Materiais", "EPI"], index=0 if tipo_detectado == "Materiais" else 1, key="up_tipo_c")
+
+                # Extrair itens com base no formato
+                itens_extraidos = []
+                if cliente_detectado in ["Smart Fit", "Self Fit"]:
+                    # Formato: material na col 0, qtd na col 1, ref na col 2
+                    # Cabeçalho geralmente na linha 1 (índice 1)
+                    for _, row in df_upload.iterrows():
+                        mat = str(row.iloc[0]).strip() if len(row) > 0 else ""
+                        qtd = str(row.iloc[1]).strip() if len(row) > 1 else ""
+                        ref = str(row.iloc[2]).strip() if len(row) > 2 else "UN."
+                        if mat and mat.upper() not in ["SMART FIT", "SELF FIT", "QTD", "REF.", "DATA DO PEDIDO", "MÊS DE REFERÊNCIA", "SEPARADO", "ENVIADO", "ENDEREÇO"] and not mat.upper().startswith("ENDEREÇO"):
+                            # Ignorar linhas de rodapé
+                            if "DATA" not in mat.upper() and "MÊS" not in mat.upper() and "SEPARADO" not in mat.upper() and "ENVIADO" not in mat.upper():
+                                try:
+                                    qtd_val = int(float(qtd)) if qtd.replace(".", "").isdigit() else (1 if qtd else "")
+                                except:
+                                    qtd_val = ""
+                                if qtd_val != "":
+                                    itens_extraidos.append({"material": mat, "qtde": qtd_val, "ref": ref if ref else "UN."})
+                elif cliente_detectado == "Assaí Atacadista":
+                    # Formato tabular com colunas ID, Loja, Material, Quantidade...
+                    # Tentar detectar header
+                    header_row = None
+                    for ri in range(min(10, len(df_upload))):
+                        vals = [str(v).upper() for v in df_upload.iloc[ri].tolist()]
+                        if "MATERIAL" in vals or "MATERIAL" in vals or "QUANTIDADE" in vals:
+                            header_row = ri
+                            break
+                    if header_row is not None:
+                        df_assai = pd.read_excel(arq_pedido, header=header_row, dtype=str, keep_default_na=False)
+                        if "Material" in df_assai.columns and "Quantidade" in df_assai.columns:
+                            for _, row in df_assai.iterrows():
+                                mat = str(row.get("Material", "")).strip()
+                                qtd = str(row.get("Quantidade", "")).strip()
+                                if mat and qtd:
+                                    try:
+                                        qtd_val = int(float(qtd))
+                                    except:
+                                        qtd_val = 1
+                                    itens_extraidos.append({"material": mat, "qtde": qtd_val, "ref": "UN."})
+
+                st.write(f"📋 Itens detectados: **{len(itens_extraidos)}**")
+                if itens_extraidos:
+                    st.dataframe(pd.DataFrame(itens_extraidos), use_container_width=True)
+
+                mes_ref_up = st.selectbox("Mês de Referência *", MESES[1:], key="up_mes_ref_c")
+                data_ped_up = st.text_input("Data do Pedido", value=datetime.now().strftime("%d/%m/%Y"), key="up_data_ped_c")
+                status_up = st.selectbox("Status", ["PENDENTE", "SEPARADO", "ENVIADO", "ENTREGUE"], key="up_status_c")
+                resp_up = st.text_input("Responsável", key="up_resp_c")
+                end_up = st.text_area("Endereço", value=ENDERECOS_UNIDADES.get(unidade_detectada, ""), key="up_end_c")
+                obs_up = st.text_area("Observação", key="up_obs_c")
+
+                if st.button("📤 IMPORTAR PEDIDO", type="primary", key="btn_import_c"):
+                    if not itens_extraidos:
+                        st.error("❌ Nenhum item detectado na planilha.")
+                    else:
+                        novo_id = 1
+                        if not df_compras.empty and "ID" in df_compras.columns:
+                            try:
+                                novo_id = max([int(x) for x in df_compras["ID"].astype(str) if x.isdigit()]) + 1
+                            except Exception:
+                                novo_id = len(df_compras) + 1
+                        for it in itens_extraidos:
+                            nova_linha = {
+                                "ID": str(novo_id),
+                                "CLIENTE": cliente_detectado,
+                                "UNIDADE": unidade_detectada,
+                                "TIPO": tipo_upload.upper(),
+                                "MATERIAL": str(it["material"]).strip().upper(),
+                                "QUANTIDADE": str(it["qtde"]),
+                                "UNIDADE_REF": str(it.get("ref", "UN.")).strip().upper(),
+                                "STATUS": status_up,
+                                "DATA_PEDIDO": data_ped_up.strip(),
+                                "MES_REFERENCIA": mes_ref_up,
+                                "SEPARADO": "",
+                                "ENVIADO": "",
+                                "ENDERECO": end_up.strip(),
+                                "RESPONSAVEL": resp_up.strip().upper(),
+                                "OBSERVACAO": obs_up.strip().upper(),
+                                "DATA_CADASTRO": datetime.now().strftime("%d/%m/%Y %H:%M"),
+                                "ANEXO": ""
+                            }
+                            df_compras = pd.concat([df_compras, pd.DataFrame([nova_linha])], ignore_index=True)
+                        salvar_compras(df_compras)
+                        st.success(f"✅ Pedido #{novo_id} importado com {len(itens_extraidos)} itens!")
+                        st.rerun()
+            else:
+                st.warning("⚠️ Não foi possível detectar o cliente automaticamente. Verifique se a planilha segue o formato padrão.")
+        except Exception as e:
+            st.error(f"❌ Erro ao processar planilha: {e}")
+
+# ================ ABA 11 - BACKUP / RESTAURAÇÃO ================
+with aba11:
     st.subheader("💾 BACKUP E RESTAURAÇÃO")
     st.warning("⚠️ **IMPORTANTE:** No Streamlit Cloud, os dados são salvos localmente e podem ser perdidos ao atualizar o código. Use esta aba para fazer backup antes de qualquer atualização!")
 
@@ -2414,7 +3083,7 @@ with aba10:
 
     st.markdown("---")
     st.markdown("### 📂 Arquivos Atuais no Sistema")
-    col_b1, col_b2, col_b3, col_b4 = st.columns(4)
+    col_b1, col_b2, col_b3, col_b4, col_b5 = st.columns(5)
     with col_b1:
         st.metric("📎 Docs Lojas", len(os.listdir(PASTA_DOCS)) if os.path.exists(PASTA_DOCS) else 0)
     with col_b2:
@@ -2423,6 +3092,8 @@ with aba10:
         st.metric("🖼️ Fotos", len(os.listdir(PASTA_FOTOS)) if os.path.exists(PASTA_FOTOS) else 0)
     with col_b4:
         st.metric("📎 Comprovantes", len(os.listdir(PASTA_COMPROVANTES)) if os.path.exists(PASTA_COMPROVANTES) else 0)
+    with col_b5:
+        st.metric("📦 Anexos Compras", len(os.listdir(PASTA_ANEXOS_COMPRAS)) if os.path.exists(PASTA_ANEXOS_COMPRAS) else 0)
 
     st.markdown("---")
     st.caption("Dica: Faça backup periodicamente ou sempre antes de atualizar o código no Streamlit Cloud.")
