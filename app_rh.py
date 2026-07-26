@@ -784,23 +784,55 @@ def haversine(lat1, lon1, lat2, lon2):
 with aba1:
     dados = carregar_dados()
     
-    busca = st.text_input("🔍 Buscar por Matrícula ou Nome", placeholder="Ex: CARLOS, 1234, SILVA VAZ...")
+    # ---------- BUSCA COM AUTOCOMPLETE ----------
+    st.markdown("**🔍 Buscar Colaborador**")
+    
+    # Prepara lista para autocomplete
+    base_auto = dados["Base_Dados"].copy()
+    base_auto["Matricula"] = base_auto["Matricula"].fillna("").astype(str).str.strip()
+    base_auto["Nome"] = base_auto["Nome"].fillna("").astype(str).str.strip()
+    base_auto["Loja"] = base_auto["Loja"].fillna("").astype(str).str.strip()
+    base_auto["Situacao"] = base_auto["Situacao"].fillna("").astype(str).str.strip()
+    base_auto["Cargo"] = base_auto["Cargo"].fillna("").astype(str).str.strip()
+    
+    # Ordena por nome
+    base_auto = base_auto.sort_values("Nome", key=lambda col: col.str.upper())
+    
+    # Opções do autocomplete: "MATRICULA - NOME"
+    opcoes_auto = [f"{row['Matricula']} - {row['Nome']}" for _, row in base_auto.iterrows()]
+    
+    col_auto, col_btn = st.columns([4, 1])
+    with col_auto:
+        sel_auto = st.selectbox(
+            "Digite o nome ou matrícula e selecione:",
+            options=[""] + opcoes_auto,
+            index=0,
+            key="autocomplete_func",
+            help="Comece a digitar para filtrar automaticamente"
+        )
+    with col_btn:
+        st.markdown("<br>", unsafe_allow_html=True)
+        carregar = st.button("📝 Carregar para Editar", type="primary", key="btn_carregar_auto")
+    
+    # Se selecionou e clicou em carregar, extrai a matrícula
+    mat_sel = ""
+    if carregar and sel_auto and " - " in sel_auto:
+        mat_sel = sel_auto.split(" - ")[0].strip()
+        st.success(f"✅ Colaborador selecionado: {sel_auto}")
+    
+    # Também mantém busca livre para filtrar a tabela
+    st.markdown("---")
+    busca = st.text_input("🔍 Ou faça uma busca livre (filtra a tabela abaixo):", placeholder="Ex: CARLOS, 1234, SILVA VAZ...")
     
     col_f1, col_f2, col_f3 = st.columns(3)
     with col_f1:
-        filtro_loja = st.selectbox("Filtrar por Loja", ["Todas"] + lista_lojas())
+        filtro_loja = st.selectbox("Filtrar por Loja", ["Todas"] + lista_lojas(), key="filtro_loja_cad")
     with col_f2:
-        filtro_sit = st.selectbox("Filtrar por Situação", ["Todas"] + SITUACOES)
+        filtro_sit = st.selectbox("Filtrar por Situação", ["Todas"] + SITUACOES, key="filtro_sit_cad")
     with col_f3:
-        filtro_cargo = st.selectbox("Filtrar por Cargo", ["Todos"] + lista_cargos())
+        filtro_cargo = st.selectbox("Filtrar por Cargo", ["Todos"] + lista_cargos(), key="filtro_cargo_cad")
 
-    lista = dados["Base_Dados"].copy()
-    lista["Matricula"] = lista["Matricula"].fillna("").astype(str).str.strip()
-    lista["Nome"] = lista["Nome"].fillna("").astype(str).str.strip()
-    lista["Loja"] = lista["Loja"].fillna("").astype(str).str.strip()
-    lista["Situacao"] = lista["Situacao"].fillna("").astype(str).str.strip()
-    lista["Cargo"] = lista["Cargo"].fillna("").astype(str).str.strip()
-
+    lista = base_auto.copy()
     if busca.strip():
         lista = lista[
             busca_palavras(lista["Matricula"], busca) |
@@ -818,9 +850,11 @@ with aba1:
         use_container_width=True, hide_index=True
     )
 
-    mat_sel = st.text_input("✏️ Digite a Matrícula EXATA para editar / excluir", placeholder="Igual coluna A da planilha")
+    # Campo manual de matrícula (caso prefira digitar direto)
+    mat_manual = st.text_input("✏️ Ou digite a Matrícula EXATA para editar / excluir", value=mat_sel, placeholder="Igual coluna A da planilha", key="matricula_manual")
+    mat_sel = mat_manual.strip()
     reg = pd.DataFrame()
-    if mat_sel.strip():
+    if mat_sel:
         mat_busca = str(mat_sel).strip()
         reg = dados["Base_Dados"][dados["Base_Dados"]["Matricula"] == mat_busca]
 
@@ -832,7 +866,7 @@ with aba1:
             dt_adm = datetime.strptime(val_campo("Admissao"), "%d/%m/%Y")
             hoje = datetime.now()
             dias_corridos = (hoje - dt_adm).days
-            for prazo in [29, 44, 59, 89]:
+            for prazo in [30, 45, 60, 90]:
                 rest = prazo - dias_corridos
                 if rest > 0:
                     status = f"Faltam {rest} dias"
@@ -1164,7 +1198,7 @@ with aba3:
         try:
             dt_adm = datetime.strptime(str(func["Admissao"]).strip(), "%d/%m/%Y")
             dias = (hoje - dt_adm).days
-            for p in [26,44,59,89]:
+            for p in [30,45,60,90]:
                 if 0 <= p - dias <=10:
                     tabela_exp.append([func["Matricula"], func["Nome"], func["Loja"], f"{p} dias", f"Faltam {p-dias} dias"])
                     break
