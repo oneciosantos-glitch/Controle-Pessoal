@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 try:
     import matplotlib.pyplot as plt
     MATPLOT = True
@@ -852,6 +853,24 @@ def geocodificar(endereco):
     except Exception:
         pass
     return None, None
+
+def reverse_geocodificar(lat, lon):
+    """Converte latitude/longitude em endereço usando Nominatim."""
+    try:
+        url = "https://nominatim.openstreetmap.org/reverse"
+        params = {"lat": lat, "lon": lon, "format": "json", "zoom": 10}
+        headers = {"User-Agent": "RHApp/1.0"}
+        resp = requests.get(url, params=params, headers=headers, timeout=15)
+        dados_geo = resp.json()
+        if dados_geo and "address" in dados_geo:
+            addr = dados_geo["address"]
+            cidade = addr.get("city") or addr.get("town") or addr.get("village") or addr.get("county") or ""
+            estado = addr.get("state") or ""
+            pais = addr.get("country") or ""
+            return cidade, estado, pais, dados_geo.get("display_name", "")
+    except Exception:
+        pass
+    return None, None, None, None
 
 def calcular_rota(lat1, lon1, lat2, lon2):
     """Calcula distância, tempo e geometria da rota via OSRM."""
@@ -2080,36 +2099,111 @@ with aba9:
             pass
         return []
 
-    def input_endereco(label, key_prefix):
+    def input_endereco(label, key_prefix, pais_default=None, estado_default=None, cidade_default=None):
         """Monta os inputs de endereço com combos de país, estado e cidade."""
         st.markdown(f"**{label}**")
-        pais = st.selectbox(f"🌍 País", PAÍSES, key=f"{key_prefix}_pais")
+        pais_index = PAÍSES.index(pais_default) if pais_default and pais_default in PAÍSES else 0
+        pais = st.selectbox(f"🌍 País", PAÍSES, index=pais_index, key=f"{key_prefix}_pais")
         if pais == "Brasil":
-            estado = st.selectbox(f"🏛️ Estado", ESTADOS_BR, key=f"{key_prefix}_estado")
+            estado_idx = 0
+            if estado_default:
+                for i, e in enumerate(ESTADOS_BR):
+                    if estado_default.upper() in e.upper():
+                        estado_idx = i
+                        break
+            estado = st.selectbox(f"🏛️ Estado", ESTADOS_BR, index=estado_idx, key=f"{key_prefix}_estado")
             estado_limp = estado.split(" (")[0] if "(" in estado else estado
             uf_sigla = estado.split("(")[1].replace(")", "").strip() if "(" in estado else ""
             cidades = buscar_cidades_ibge(uf_sigla) if uf_sigla else []
+            cidade_idx = 0
+            if cidade_default and cidades:
+                for i, c in enumerate(cidades):
+                    if cidade_default.upper() in c.upper():
+                        cidade_idx = i
+                        break
             if cidades:
-                cidade = st.selectbox(f"🏙️ Cidade", cidades, key=f"{key_prefix}_cidade")
+                cidade = st.selectbox(f"🏙️ Cidade", cidades, index=cidade_idx, key=f"{key_prefix}_cidade")
             else:
-                cidade = st.text_input(f"🏙️ Cidade", placeholder="Ex: Belém", key=f"{key_prefix}_cidade")
+                cidade = st.text_input(f"🏙️ Cidade", value=cidade_default or "", placeholder="Ex: Belém", key=f"{key_prefix}_cidade")
         elif pais == "Estados Unidos":
-            estado = st.selectbox(f"🏛️ Estado", ESTADOS_US, key=f"{key_prefix}_estado")
+            estado_idx = 0
+            if estado_default:
+                for i, e in enumerate(ESTADOS_US):
+                    if estado_default.upper() in e.upper():
+                        estado_idx = i
+                        break
+            estado = st.selectbox(f"🏛️ Estado", ESTADOS_US, index=estado_idx, key=f"{key_prefix}_estado")
             estado_limp = estado.split(" (")[0] if "(" in estado else estado
-            cidade = st.text_input(f"🏙️ Cidade", placeholder="Ex: Nova York", key=f"{key_prefix}_cidade")
+            cidade = st.text_input(f"🏙️ Cidade", value=cidade_default or "", placeholder="Ex: Nova York", key=f"{key_prefix}_cidade")
         elif pais == "México":
-            estado = st.selectbox(f"🏛️ Estado", ESTADOS_MX, key=f"{key_prefix}_estado")
+            estado_idx = 0
+            if estado_default:
+                for i, e in enumerate(ESTADOS_MX):
+                    if estado_default.upper() in e.upper():
+                        estado_idx = i
+                        break
+            estado = st.selectbox(f"🏛️ Estado", ESTADOS_MX, index=estado_idx, key=f"{key_prefix}_estado")
             estado_limp = estado
-            cidade = st.text_input(f"🏙️ Cidade", placeholder="Ex: Cidade do México", key=f"{key_prefix}_cidade")
+            cidade = st.text_input(f"🏙️ Cidade", value=cidade_default or "", placeholder="Ex: Cidade do México", key=f"{key_prefix}_cidade")
         else:
-            estado_limp = st.text_input(f"🏛️ Estado / Província", key=f"{key_prefix}_estado")
-            cidade = st.text_input(f"🏙️ Cidade", placeholder="Ex: Belém", key=f"{key_prefix}_cidade")
+            estado_limp = st.text_input(f"🏛️ Estado / Província", value=estado_default or "", key=f"{key_prefix}_estado")
+            cidade = st.text_input(f"🏙️ Cidade", value=cidade_default or "", placeholder="Ex: Belém", key=f"{key_prefix}_cidade")
         endereco = f"{cidade}, {estado_limp}, {pais}" if str(cidade).strip() and str(estado_limp).strip() else ""
         return endereco, pais
 
+    # --- Leitura de localização atual via query params ---
+    qp = st.query_params
+    loc_lat = qp.get("loc_lat", [None])[0] if isinstance(qp.get("loc_lat"), list) else qp.get("loc_lat")
+    loc_lon = qp.get("loc_lon", [None])[0] if isinstance(qp.get("loc_lon"), list) else qp.get("loc_lon")
+    loc_pais_default = None
+    loc_estado_default = None
+    loc_cidade_default = None
+    if loc_lat and loc_lon:
+        with st.spinner("Obtendo endereço da localização atual..."):
+            loc_cidade, loc_estado, loc_pais, _ = reverse_geocodificar(float(loc_lat), float(loc_lon))
+            if loc_pais and "Brasil" in loc_pais:
+                loc_pais_default = "Brasil"
+                loc_estado_default = loc_estado
+                loc_cidade_default = loc_cidade
+            elif loc_pais and "United States" in loc_pais:
+                loc_pais_default = "Estados Unidos"
+                loc_estado_default = loc_estado
+                loc_cidade_default = loc_cidade
+            elif loc_pais and "Mexico" in loc_pais:
+                loc_pais_default = "México"
+                loc_estado_default = loc_estado
+                loc_cidade_default = loc_cidade
+            else:
+                loc_pais_default = loc_pais
+                loc_estado_default = loc_estado
+                loc_cidade_default = loc_cidade
+
     col_o, col_d = st.columns(2)
     with col_o:
-        origem_str, pais_o = input_endereco("📍 ORIGEM", "orig")
+        origem_str, pais_o = input_endereco("📍 ORIGEM", "orig", pais_default=loc_pais_default, estado_default=loc_estado_default, cidade_default=loc_cidade_default)
+        st.markdown("")
+        if st.button("📍 Usar minha localização atual", key="btn_localizacao_atual"):
+            components.html("""
+                <script>
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(
+                        function(position) {
+                            var lat = position.coords.latitude;
+                            var lon = position.coords.longitude;
+                            var url = new URL(window.location.href);
+                            url.searchParams.set('loc_lat', lat);
+                            url.searchParams.set('loc_lon', lon);
+                            window.location.href = url.toString();
+                        },
+                        function(error) {
+                            alert('Não foi possível obter a localização: ' + error.message);
+                        }
+                    );
+                } else {
+                    alert('Geolocalização não suportada neste navegador.');
+                }
+                </script>
+            """, height=0)
     with col_d:
         destino_str, pais_d = input_endereco("📍 DESTINO", "dest")
 
@@ -2146,6 +2240,16 @@ with aba9:
                             st.metric("⏱️ Tempo Estimado", f"{horas}h {mins}min")
                         with c3:
                             st.metric("💰 Pedágio", "Consultar via app")
+
+                        # Botões para abrir no Google Maps e Waze
+                        st.markdown("---")
+                        gm_url = f"https://www.google.com/maps/dir/?api=1&origin={lat1},{lon1}&destination={lat2},{lon2}&travelmode=driving"
+                        waze_url = f"https://waze.com/ul?ll={lat2},{lon2}&navigate=yes&q={lat2},{lon2}"
+                        bg1, bg2 = st.columns(2)
+                        with bg1:
+                            st.markdown(f'<a href="{gm_url}" target="_blank"><button style="width:100%;padding:10px;background:#4285F4;color:white;border:none;border-radius:5px;font-size:16px;cursor:pointer;">🗺️ Abrir no Google Maps</button></a>', unsafe_allow_html=True)
+                        with bg2:
+                            st.markdown(f'<a href="{waze_url}" target="_blank"><button style="width:100%;padding:10px;background:#33ccff;color:white;border:none;border-radius:5px;font-size:16px;cursor:pointer;">🚙 Abrir no Waze</button></a>', unsafe_allow_html=True)
 
                         # Combustível
                         st.markdown("---")
@@ -2252,6 +2356,31 @@ with aba9:
                         # Instruções passo a passo
                         st.markdown("---")
                         st.subheader("📝 Instruções de Rota (passo a passo)")
+                        MANOBRAS = {
+                            "turn": "Vire",
+                            "new name": "Continue em",
+                            "depart": "Saia de",
+                            "arrive": "Chegue em",
+                            "merge": "Acesse",
+                            "on ramp": "Entre na rampa",
+                            "off ramp": "Saia na rampa",
+                            "fork": "Na bifurcação",
+                            "end of road": "No fim da via",
+                            "continue": "Continue em",
+                            "roundabout": "Na rotatória",
+                            "rotary": "Na rotatória",
+                            "roundabout turn": "Na rotatória",
+                            "exit roundabout": "Saia da rotatória",
+                            "notification": "Atenção",
+                            "uturn": "Retorne",
+                            "sharp right": "Curva fechada à direita",
+                            "right": "À direita",
+                            "slight right": "Leve à direita",
+                            "straight": "Em frente",
+                            "slight left": "Leve à esquerda",
+                            "left": "À esquerda",
+                            "sharp left": "Curva fechada à esquerda",
+                        }
                         try:
                             url = f"http://router.project-osrm.org/route/v1/driving/{lon1},{lat1};{lon2},{lat2}"
                             params = {"overview": "false", "steps": "true"}
@@ -2263,8 +2392,27 @@ with aba9:
                                 for step in legs.get("steps", []):
                                     nome = step.get("name", "")
                                     dist = step.get("distance", 0)
-                                    instr = step.get("maneuver", {}).get("type", "continue")
-                                    passos.append(f"• {instr.upper()}: siga em **{nome}** por `{dist/1000:.1f} km`")
+                                    manobra = step.get("maneuver", {})
+                                    tipo = manobra.get("type", "continue")
+                                    modifier = manobra.get("modifier", "")
+                                    tipo_pt = MANOBRAS.get(tipo, tipo.replace("_", " ").title())
+                                    mod_pt = MANOBRAS.get(modifier, modifier.replace("_", " ").title()) if modifier else ""
+                                    if tipo in ("turn", "fork", "end of road", "merge", "on ramp", "off ramp") and mod_pt:
+                                        instrucao = f"• **{tipo_pt} {mod_pt}**"
+                                    elif tipo in ("roundabout", "rotary", "roundabout turn"):
+                                        exit_num = manobra.get("exit", "")
+                                        instrucao = f"• **{tipo_pt}**" + (f" (saída {exit_num})" if exit_num else "")
+                                    elif tipo == "depart":
+                                        instrucao = f"• **{tipo_pt}** {nome}"
+                                    elif tipo == "arrive":
+                                        instrucao = f"• **{tipo_pt}** {nome}"
+                                    else:
+                                        instrucao = f"• **{tipo_pt}** em {nome}"
+                                    if nome and tipo not in ("depart", "arrive"):
+                                        instrucao += f" por `{dist/1000:.1f} km`"
+                                    elif dist > 0:
+                                        instrucao += f" — `{dist/1000:.1f} km`"
+                                    passos.append(instrucao)
                                 if passos:
                                     for p in passos[:25]:
                                         st.markdown(p)
