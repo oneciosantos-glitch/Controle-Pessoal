@@ -1943,23 +1943,45 @@ with aba9:
         "Cidade do México"
     ]
 
+    @st.cache_data(ttl=86400, show_spinner=False)
+    def buscar_cidades_ibge(uf_sigla):
+        """Busca lista de municípios do IBGE pela sigla da UF."""
+        try:
+            url = f"https://servicodados.ibge.gov.br/api/v1/localidades/estados/{uf_sigla}/municipios"
+            resp = requests.get(url, timeout=15)
+            if resp.status_code == 200:
+                dados = resp.json()
+                cidades = sorted([m["nome"] for m in dados])
+                return cidades
+        except Exception:
+            pass
+        return []
+
     def input_endereco(label, key_prefix):
-        """Monta os inputs de endereço com combos de país e estado."""
+        """Monta os inputs de endereço com combos de país, estado e cidade."""
         st.markdown(f"**{label}**")
         pais = st.selectbox(f"🌍 País", PAÍSES, key=f"{key_prefix}_pais")
         if pais == "Brasil":
             estado = st.selectbox(f"🏛️ Estado", ESTADOS_BR, key=f"{key_prefix}_estado")
             estado_limp = estado.split(" (")[0] if "(" in estado else estado
+            uf_sigla = estado.split("(")[1].replace(")", "").strip() if "(" in estado else ""
+            cidades = buscar_cidades_ibge(uf_sigla) if uf_sigla else []
+            if cidades:
+                cidade = st.selectbox(f"🏙️ Cidade", cidades, key=f"{key_prefix}_cidade")
+            else:
+                cidade = st.text_input(f"🏙️ Cidade", placeholder="Ex: Belém", key=f"{key_prefix}_cidade")
         elif pais == "Estados Unidos":
             estado = st.selectbox(f"🏛️ Estado", ESTADOS_US, key=f"{key_prefix}_estado")
             estado_limp = estado.split(" (")[0] if "(" in estado else estado
+            cidade = st.text_input(f"🏙️ Cidade", placeholder="Ex: Nova York", key=f"{key_prefix}_cidade")
         elif pais == "México":
             estado = st.selectbox(f"🏛️ Estado", ESTADOS_MX, key=f"{key_prefix}_estado")
             estado_limp = estado
+            cidade = st.text_input(f"🏙️ Cidade", placeholder="Ex: Cidade do México", key=f"{key_prefix}_cidade")
         else:
             estado_limp = st.text_input(f"🏛️ Estado / Província", key=f"{key_prefix}_estado")
-        cidade = st.text_input(f"🏙️ Cidade", placeholder="Ex: Belém", key=f"{key_prefix}_cidade")
-        endereco = f"{cidade}, {estado_limp}, {pais}" if cidade.strip() and str(estado_limp).strip() else ""
+            cidade = st.text_input(f"🏙️ Cidade", placeholder="Ex: Belém", key=f"{key_prefix}_cidade")
+        endereco = f"{cidade}, {estado_limp}, {pais}" if str(cidade).strip() and str(estado_limp).strip() else ""
         return endereco, pais
 
     col_o, col_d = st.columns(2)
