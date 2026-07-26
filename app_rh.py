@@ -17,6 +17,12 @@ from PIL import Image
 from openpyxl import load_workbook, Workbook
 from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
+from docx import Document
+from docx.shared import Inches, Pt, Cm, RGBColor
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.table import WD_TABLE_ALIGNMENT
+from docx.oxml.ns import qn
+from docx.oxml import OxmlElement
 
 # ====================== GOOGLE SHEETS INTEGRAÇÃO ======================
 # Verifica se as credenciais do Google Sheets estão configuradas
@@ -751,90 +757,209 @@ def exportar_assai(df, caminho, unidade="", endereco=""):
     wb.close()
 
 
-def exportar_epi_excel(df, caminho, unidade="", responsavel="", data_pedido=""):
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "EPI"
-    borda = Border(left=Side(style="thin", color="000000"), right=Side(style="thin", color="000000"), top=Side(style="thin", color="000000"), bottom=Side(style="thin", color="000000"))
-
-    ws.merge_cells("A1:F1")
-    ws["A1"].value = "DISTRIBUIÇÃO DE EPI"
-    ws["A1"].font = Font(name="Arial", size=20, bold=True, color="FFFFFF")
-    ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
-    ws["A1"].fill = PatternFill(start_color="C00000", end_color="C00000", fill_type="solid")
-    ws.row_dimensions[1].height = 35
-
-    ws["A3"].value = "UNIDADE:"
-    ws["A3"].font = Font(bold=True)
-    ws.merge_cells("B3:D3")
-    ws["B3"].value = unidade
-    ws["E3"].value = "RESPONSÁVEL:"
-    ws["E3"].font = Font(bold=True)
-    ws["F3"].value = responsavel
-    ws["A4"].value = "DATA:"
-    ws["A4"].font = Font(bold=True)
-    ws["B4"].value = data_pedido
-
-    # Separar botas e demais EPIs
+def exportar_epi_word(df, caminho, unidade="", responsavel="", data_pedido="", cliente=""):
+    doc = Document()
+    
+    # Configurar margens
+    for section in doc.sections:
+        section.top_margin = Cm(1.5)
+        section.bottom_margin = Cm(1.5)
+        section.left_margin = Cm(1.5)
+        section.right_margin = Cm(1.5)
+    
+    def set_cell_border(cell, **kwargs):
+        tc = cell._element
+        tcPr = tc.get_or_add_tcPr()
+        for edge in ('top', 'left', 'bottom', 'right', 'insideH', 'insideV'):
+            edge_el = OxmlElement(f'w:{edge}')
+            for key, val in kwargs.items():
+                edge_el.set(qn(f'w:{key}'), val)
+            tcPr.append(edge_el)
+    
+    def add_borders_to_table(table):
+        for row in table.rows:
+            for cell in row.cells:
+                set_cell_border(cell, val='single', sz='4', color='000000')
+    
+    # --- CABEÇALHO: FG SERVICES ---
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run = p.add_run("FG SERVICES")
+    run.font.size = Pt(16)
+    run.font.bold = True
+    run.font.color.rgb = RGBColor(0, 0, 0)
+    
+    doc.add_paragraph()  # espaço
+    
+    # --- Endereço ---
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    run = p.add_run("Endereço: Av. Conselheiro Furtado, 76 - Batista Campos, Belém - PA, 66025-160")
+    run.font.size = Pt(9)
+    run.font.color.rgb = RGBColor(128, 128, 128)
+    run.font.underline = True
+    
+    doc.add_paragraph()  # espaço
+    
+    # --- TABELA DE ESTADOS ---
+    estados = [
+        ("ALAGOAS", False), ("BAHIA", False), ("CEARÁ", False), ("MARANHÃO", False),
+        ("PARAÍBA", False), ("PARÁ", True), ("PERNAMBUCO", False), ("PIAUÍ", False),
+        ("RIO GRANDE DO NORTE", False), ("SERGIPE", False),
+        ("AMAPÁ", False), ("RORAIMA", False), ("AMAZÔNAS", False), ("RONDÔNIA", False)
+    ]
+    
+    tbl_estados = doc.add_table(rows=2, cols=7)
+    tbl_estados.alignment = WD_TABLE_ALIGNMENT.CENTER
+    for i, (estado, marcado) in enumerate(estados[:7]):
+        cell = tbl_estados.rows[0].cells[i]
+        cell.text = f"{estado} ( {'x' if marcado else ' '} )"
+        for paragraph in cell.paragraphs:
+            paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            for run in paragraph.runs:
+                run.font.size = Pt(8)
+                run.font.bold = True
+    for i, (estado, marcado) in enumerate(estados[7:14]):
+        cell = tbl_estados.rows[1].cells[i]
+        cell.text = f"{estado} ( {'x' if marcado else ' '} )"
+        for paragraph in cell.paragraphs:
+            paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            for run in paragraph.runs:
+                run.font.size = Pt(8)
+                run.font.bold = True
+    add_borders_to_table(tbl_estados)
+    
+    doc.add_paragraph()  # espaço
+    
+    # --- SEPARAR BOTAS E DEMAIS EPIs ---
     botas = df[df["MATERIAL"].astype(str).str.contains("BOTA", na=False)]
     outros = df[~df["MATERIAL"].astype(str).str.contains("BOTA", na=False)]
-
-    row = 6
+    
+    # --- SEÇÃO BOTAS ---
     if not botas.empty:
-        ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=6)
-        ws.cell(row=row, column=1, value="BOTAS").font = Font(name="Arial", size=12, bold=True, color="FFFFFF")
-        ws.cell(row=row, column=1).alignment = Alignment(horizontal="center", vertical="center")
-        ws.cell(row=row, column=1).fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
-        for c in range(1, 7):
-            ws.cell(row=row, column=c).border = borda
-        row += 1
-        for _, r in botas.iterrows():
-            ws.cell(row=row, column=1, value=str(r.get("MATERIAL", ""))).font = Font(name="Arial", size=10)
-            ws.cell(row=row, column=1).border = borda
-            ws.cell(row=row, column=2, value="QTD:").font = Font(name="Arial", size=10, bold=True)
-            ws.cell(row=row, column=2).border = borda
-            ws.cell(row=row, column=3, value=str(r.get("QUANTIDADE", ""))).font = Font(name="Arial", size=10)
-            ws.cell(row=row, column=3).border = borda
-            ws.cell(row=row, column=4, value="REF:").font = Font(name="Arial", size=10, bold=True)
-            ws.cell(row=row, column=4).border = borda
-            ws.cell(row=row, column=5, value=str(r.get("UNIDADE_REF", "PAR"))).font = Font(name="Arial", size=10)
-            ws.cell(row=row, column=5).border = borda
-            ws.merge_cells(start_row=row, start_column=5, end_row=row, end_column=6)
-            ws.cell(row=row, column=6).border = borda
-            row += 1
-
-    if not outros.empty:
-        row += 1
-        ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=6)
-        ws.cell(row=row, column=1, value="EPIs").font = Font(name="Arial", size=12, bold=True, color="FFFFFF")
-        ws.cell(row=row, column=1).alignment = Alignment(horizontal="center", vertical="center")
-        ws.cell(row=row, column=1).fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
-        for c in range(1, 7):
-            ws.cell(row=row, column=c).border = borda
-        row += 1
-        for _, r in outros.iterrows():
-            ws.cell(row=row, column=1, value=str(r.get("MATERIAL", ""))).font = Font(name="Arial", size=10)
-            ws.cell(row=row, column=1).border = borda
-            ws.cell(row=row, column=2, value="QTD:").font = Font(name="Arial", size=10, bold=True)
-            ws.cell(row=row, column=2).border = borda
-            ws.cell(row=row, column=3, value=str(r.get("QUANTIDADE", ""))).font = Font(name="Arial", size=10)
-            ws.cell(row=row, column=3).border = borda
-            ws.cell(row=row, column=4, value="REF:").font = Font(name="Arial", size=10, bold=True)
-            ws.cell(row=row, column=4).border = borda
-            ws.cell(row=row, column=5, value=str(r.get("UNIDADE_REF", "UN."))).font = Font(name="Arial", size=10)
-            ws.cell(row=row, column=5).border = borda
-            ws.merge_cells(start_row=row, start_column=5, end_row=row, end_column=6)
-            ws.cell(row=row, column=6).border = borda
-            row += 1
-
-    ws.column_dimensions["A"].width = 40
-    ws.column_dimensions["B"].width = 10
-    ws.column_dimensions["C"].width = 12
-    ws.column_dimensions["D"].width = 10
-    ws.column_dimensions["E"].width = 12
-    ws.column_dimensions["F"].width = 12
-    wb.save(caminho)
-    wb.close()
+        # Título Botas
+        p = doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run = p.add_run("Botas")
+        run.font.size = Pt(10)
+        run.font.bold = True
+        
+        # Tabela Botas: 7 colunas
+        tbl_botas = doc.add_table(rows=1 + len(botas), cols=7)
+        tbl_botas.alignment = WD_TABLE_ALIGNMENT.CENTER
+        
+        # Cabeçalho
+        headers_botas = ["Nome", "Local de Trabalho", "Modelo", "Responsável", "Descrição", "", ""]
+        for i, h in enumerate(headers_botas):
+            cell = tbl_botas.rows[0].cells[i]
+            cell.text = h
+            for paragraph in cell.paragraphs:
+                paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                for run in paragraph.runs:
+                    run.font.size = Pt(9)
+                    run.font.bold = True
+        
+        # Dados
+        for idx, (_, r) in enumerate(botas.iterrows(), start=1):
+            mat = str(r.get("MATERIAL", ""))
+            qtd = str(r.get("QUANTIDADE", ""))
+            ref = str(r.get("UNIDADE_REF", ""))
+            # Extrair nome do funcionário do responsável ou deixar vazio
+            resp = str(r.get("RESPONSAVEL", responsavel))
+            desc = f"{qtd} {ref}" if qtd else mat
+            
+            tbl_botas.rows[idx].cells[0].text = resp  # Nome
+            tbl_botas.rows[idx].cells[1].text = unidade  # Local
+            tbl_botas.rows[idx].cells[2].text = ""  # Modelo
+            tbl_botas.rows[idx].cells[3].text = resp  # Responsável
+            tbl_botas.rows[idx].cells[4].text = desc  # Descrição
+            
+            for cell in tbl_botas.rows[idx].cells:
+                for paragraph in cell.paragraphs:
+                    for run in paragraph.runs:
+                        run.font.size = Pt(9)
+        
+        add_borders_to_table(tbl_botas)
+        doc.add_paragraph()
+    
+    # --- SEÇÃO EPIS ---
+    # Lista fixa de EPIs conforme a imagem
+    epi_lista = [
+        "Luva látex", "Óculos de proteção", "Luva de Vinil", "Máscara de Proteção",
+        "Protetor auricular_plug ( ) ou concha ( )", "Protetor tipo concha",
+        "Luva para jardineiro", "Avental de raspa", "Viseira", "Perneira", "Meia Térmica",
+        "Japona Térmica", "Calça Térmica", "Luvas térmicas", "Capuz Térmico", "Avental Térmico"
+    ]
+    
+    # Criar dicionário de materiais do pedido
+    materiais_pedido = {}
+    for _, r in outros.iterrows():
+        mat = str(r.get("MATERIAL", "")).strip().upper()
+        qtd = str(r.get("QUANTIDADE", ""))
+        ref = str(r.get("UNIDADE_REF", ""))
+        if mat and qtd:
+            materiais_pedido[mat] = f"{qtd} {ref}" if ref else qtd
+    
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run = p.add_run("EPIS")
+    run.font.size = Pt(10)
+    run.font.bold = True
+    
+    # Tabela EPIS: 6 colunas (3 blocos de Equipamento/Quantidade)
+    tbl_epis = doc.add_table(rows=1 + len(epi_lista), cols=6)
+    tbl_epis.alignment = WD_TABLE_ALIGNMENT.CENTER
+    
+    # Cabeçalho
+    for col in range(3):
+        cell_eq = tbl_epis.rows[0].cells[col * 2]
+        cell_eq.text = "Equipamento de Proteção"
+        cell_qtd = tbl_epis.rows[0].cells[col * 2 + 1]
+        cell_qtd.text = "Quantidade"
+        for cell in [cell_eq, cell_qtd]:
+            for paragraph in cell.paragraphs:
+                paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                for run in paragraph.runs:
+                    run.font.size = Pt(8)
+                    run.font.bold = True
+    
+    # Distribuir EPIs em 3 colunas
+    epis_por_coluna = (len(epi_lista) + 2) // 3
+    for i, epi in enumerate(epi_lista):
+        col_idx = i // epis_por_coluna
+        row_idx = 1 + (i % epis_por_coluna)
+        
+        cell_eq = tbl_epis.rows[row_idx].cells[col_idx * 2]
+        cell_eq.text = epi
+        
+        # Verificar se este EPI está no pedido
+        epi_upper = epi.upper().replace(" ", "")
+        qtd_val = ""
+        for mat_key, qtd_str in materiais_pedido.items():
+            mat_clean = mat_key.replace(" ", "").replace("_", "").replace("-", "")
+            epi_clean = epi_upper.replace("_", "").replace("-", "").replace("(", "").replace(")", "").replace(" ", "")
+            if epi_clean in mat_clean or mat_clean in epi_clean:
+                qtd_val = qtd_str
+                break
+        
+        cell_qtd = tbl_epis.rows[row_idx].cells[col_idx * 2 + 1]
+        cell_qtd.text = qtd_val
+        
+        for cell in [cell_eq, cell_qtd]:
+            for paragraph in cell.paragraphs:
+                for run in paragraph.runs:
+                    run.font.size = Pt(9)
+    
+    add_borders_to_table(tbl_epis)
+    
+    # --- RODAPÉ ---
+    doc.add_paragraph()
+    p = doc.add_paragraph()
+    run = p.add_run("Observação: A coluna Situação (*), é para o setor SST")
+    run.font.size = Pt(8)
+    run.font.bold = True
+    
+    doc.save(caminho)
 
 
 def exportar_compras_formatado(df, caminho):
@@ -3011,28 +3136,44 @@ with aba10:
         st.subheader("📝 EDITAR PEDIDOS (DUPLA CLIQUE)")
         colunas_editaveis = ["STATUS", "SEPARADO", "ENVIADO", "QUANTIDADE", "OBSERVACAO"]
         df_editor_c = df_filtrado_c.copy()
+        df_editor_c["_id"] = df_editor_c.index.astype(str)
         edited_c = st.data_editor(
             df_editor_c,
             use_container_width=True,
             num_rows="dynamic",
             column_config={
+                "_id": st.column_config.TextColumn("_id", disabled=True),
                 "STATUS": st.column_config.SelectboxColumn("STATUS", options=["PENDENTE", "SEPARADO", "ENVIADO", "ENTREGUE"]),
                 "SEPARADO": st.column_config.TextColumn("SEPARADO"),
                 "ENVIADO": st.column_config.TextColumn("ENVIADO"),
                 "QUANTIDADE": st.column_config.NumberColumn("QUANTIDADE", step=1),
                 "OBSERVACAO": st.column_config.TextColumn("OBSERVACAO"),
             },
-            disabled=[c for c in df_editor_c.columns if c not in colunas_editaveis],
+            disabled=[c for c in df_editor_c.columns if c not in colunas_editaveis + ["_id"]],
             key="editor_compras"
         )
-        if st.button("💾 SALVAR ALTERAÇÕES", type="primary", key="salvar_edicao_compras"):
-            for idx in edited_c.index:
-                for col in colunas_editaveis:
-                    if col in edited_c.columns and col in df_compras.columns:
-                        df_compras.at[idx, col] = str(edited_c.at[idx, col])
-            salvar_compras(df_compras)
-            st.success("✅ Alterações salvas!")
-            st.rerun()
+        col_salvar_c, col_excluir_c = st.columns([1, 1])
+        with col_salvar_c:
+            if st.button("💾 SALVAR ALTERAÇÕES", type="primary", key="salvar_edicao_compras"):
+                ids_originais = set(df_editor_c["_id"].astype(str))
+                ids_editados = set(edited_c["_id"].astype(str)) if "_id" in edited_c.columns else set()
+                ids_removidos = ids_originais - ids_editados
+                if ids_removidos:
+                    mask_manter = ~df_compras.index.astype(str).isin(ids_removidos)
+                    df_compras = df_compras[mask_manter].reset_index(drop=True)
+                for idx in edited_c.index:
+                    _id = str(edited_c.at[idx, "_id"]) if "_id" in edited_c.columns else str(idx)
+                    mask = df_compras.index.astype(str) == _id
+                    if mask.any():
+                        real_idx = df_compras[mask].index[0]
+                        for col in colunas_editaveis:
+                            if col in edited_c.columns and col in df_compras.columns:
+                                df_compras.at[real_idx, col] = str(edited_c.at[idx, col])
+                salvar_compras(df_compras)
+                st.success("✅ Alterações salvas!")
+                st.rerun()
+        with col_excluir_c:
+            st.markdown("**🗑️ Dica:** para excluir linhas, delete-as diretamente na tabela (tecla Delete ou ícone de lixeira) e clique em **SALVAR ALTERAÇÕES**.")
     else:
         st.info("Nenhum pedido encontrado com os filtros selecionados.")
 
@@ -3192,11 +3333,10 @@ with aba10:
     else:
         st.info("Nenhum pedido cadastrado.")
 
-    # ---------- EXPORTAR PARA EXCEL ----------
+    # ---------- EXPORTAR ----------
     st.markdown("---")
-    st.subheader("📤 EXPORTAR PARA EXCEL")
+    st.subheader("📤 EXPORTAR")
     if not df_filtrado_c.empty:
-        nome_arq_c = f"Compras_{filtro_cliente_c}_{filtro_unidade_c}_{datetime.now().strftime('%Y%m%d')}.xlsx".replace("/", "-").replace(" ", "_")
         # Pegar metadados do primeiro registro
         meta = df_filtrado_c.iloc[0]
         data_ped = str(meta.get("DATA_PEDIDO", ""))
@@ -3209,19 +3349,26 @@ with aba10:
         unidade_exp = str(meta.get("UNIDADE", filtro_unidade_c))
         tipo_exp = str(meta.get("TIPO", "")).upper()
 
-        if cliente_exp == "Smart Fit":
-            exportar_smart_fit(df_filtrado_c, nome_arq_c, unidade_exp, data_ped, mes_ref, separado, enviado, endereco)
-        elif cliente_exp == "Self Fit":
-            exportar_self_fit(df_filtrado_c, nome_arq_c, unidade_exp, data_ped, mes_ref, separado, enviado, endereco)
-        elif cliente_exp == "Assaí Atacadista":
-            exportar_assai(df_filtrado_c, nome_arq_c, unidade_exp, endereco)
-        elif tipo_exp == "EPI":
-            exportar_epi_excel(df_filtrado_c, nome_arq_c, unidade_exp, responsavel, data_ped)
+        if tipo_exp == "EPI":
+            # EPI sempre exporta para Word (.docx)
+            nome_arq_c = f"EPI_{unidade_exp}_{datetime.now().strftime('%Y%m%d')}.docx".replace("/", "-").replace(" ", "_")
+            exportar_epi_word(df_filtrado_c, nome_arq_c, unidade_exp, responsavel, data_ped, cliente_exp)
+            with open(nome_arq_c, "rb") as f:
+                st.download_button("⬇️ BAIXAR WORD (EPI)", f, file_name=nome_arq_c)
+            os.remove(nome_arq_c)
         else:
-            exportar_compras_formatado(df_filtrado_c, nome_arq_c)
-        with open(nome_arq_c, "rb") as f:
-            st.download_button("⬇️ BAIXAR EXCEL", f, file_name=nome_arq_c)
-        os.remove(nome_arq_c)
+            nome_arq_c = f"Compras_{filtro_cliente_c}_{filtro_unidade_c}_{datetime.now().strftime('%Y%m%d')}.xlsx".replace("/", "-").replace(" ", "_")
+            if cliente_exp == "Smart Fit":
+                exportar_smart_fit(df_filtrado_c, nome_arq_c, unidade_exp, data_ped, mes_ref, separado, enviado, endereco)
+            elif cliente_exp == "Self Fit":
+                exportar_self_fit(df_filtrado_c, nome_arq_c, unidade_exp, data_ped, mes_ref, separado, enviado, endereco)
+            elif cliente_exp == "Assaí Atacadista":
+                exportar_assai(df_filtrado_c, nome_arq_c, unidade_exp, endereco)
+            else:
+                exportar_compras_formatado(df_filtrado_c, nome_arq_c)
+            with open(nome_arq_c, "rb") as f:
+                st.download_button("⬇️ BAIXAR EXCEL", f, file_name=nome_arq_c)
+            os.remove(nome_arq_c)
     else:
         st.info("Filtre os dados para exportar.")
 
