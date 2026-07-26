@@ -1982,6 +1982,8 @@ with aba9:
             else:
                 st.success("✅ Pontos localizados com sucesso!")
                 st.markdown("---")
+                cidade_origem = origem_str.split(",")[0].strip()
+                cidade_destino = destino_str.split(",")[0].strip()
 
                 # ---- CARRO ----
                 if transporte == "Carro":
@@ -2074,12 +2076,26 @@ with aba9:
                                 radius_min_pixels=8,
                                 radius_max_pixels=25,
                             )
+                            text_layer = pdk.Layer(
+                                "TextLayer",
+                                data=[
+                                    {"position": [lon1, lat1], "text": cidade_origem, "color": [0, 200, 0]},
+                                    {"position": [lon2, lat2], "text": cidade_destino, "color": [255, 0, 0]},
+                                ],
+                                get_position="position",
+                                get_text="text",
+                                get_color="color",
+                                get_size=18,
+                                get_text_anchor="middle",
+                                get_alignment_baseline="bottom",
+                                size_units="pixels",
+                            )
                             view_state = pdk.ViewState(
                                 latitude=mid_lat, longitude=mid_lon,
                                 zoom=zoom_lvl, pitch=0
                             )
                             st.pydeck_chart(pdk.Deck(
-                                layers=[path_layer, scatter_layer],
+                                layers=[path_layer, scatter_layer, text_layer],
                                 initial_view_state=view_state,
                                 tooltip={"text": "Rota de carro"},
                                 height=800,
@@ -2182,12 +2198,26 @@ with aba9:
                             radius_min_pixels=8,
                             radius_max_pixels=25,
                         )
+                        text_layer = pdk.Layer(
+                            "TextLayer",
+                            data=[
+                                {"position": [lon1, lat1], "text": cidade_origem, "color": [0, 200, 0]},
+                                {"position": [lon2, lat2], "text": cidade_destino, "color": [255, 0, 0]},
+                            ],
+                            get_position="position",
+                            get_text="text",
+                            get_color="color",
+                            get_size=18,
+                            get_text_anchor="middle",
+                            get_alignment_baseline="bottom",
+                            size_units="pixels",
+                        )
                         view_state = pdk.ViewState(
                             latitude=mid_lat, longitude=mid_lon,
                             zoom=zoom_lvl, pitch=0
                         )
                         st.pydeck_chart(pdk.Deck(
-                            layers=[path_layer, scatter_layer],
+                            layers=[path_layer, scatter_layer, text_layer],
                             initial_view_state=view_state,
                             tooltip={"text": "Rota aérea (linha reta)"},
                             height=800,
