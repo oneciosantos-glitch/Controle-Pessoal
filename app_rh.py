@@ -17,12 +17,16 @@ from PIL import Image
 from openpyxl import load_workbook, Workbook
 from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
-from docx import Document
-from docx.shared import Inches, Pt, Cm, RGBColor
-from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.enum.table import WD_TABLE_ALIGNMENT
-from docx.oxml.ns import qn
-from docx.oxml import OxmlElement
+try:
+    from docx import Document
+    from docx.shared import Inches, Pt, Cm, RGBColor
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.enum.table import WD_TABLE_ALIGNMENT
+    from docx.oxml.ns import qn
+    from docx.oxml import OxmlElement
+    DOCX_AVAILABLE = True
+except ImportError:
+    DOCX_AVAILABLE = False
 
 # ====================== GOOGLE SHEETS INTEGRAÇÃO ======================
 # Verifica se as credenciais do Google Sheets estão configuradas
@@ -758,6 +762,8 @@ def exportar_assai(df, caminho, unidade="", endereco=""):
 
 
 def exportar_epi_word(df, caminho, unidade="", responsavel="", data_pedido="", cliente=""):
+    if not DOCX_AVAILABLE:
+        raise RuntimeError("A biblioteca 'python-docx' não está instalada. Adicione 'python-docx' ao requirements.txt e reinicie o app.")
     doc = Document()
     
     # Configurar margens
@@ -3350,12 +3356,15 @@ with aba10:
         tipo_exp = str(meta.get("TIPO", "")).upper()
 
         if tipo_exp == "EPI":
-            # EPI sempre exporta para Word (.docx)
-            nome_arq_c = f"EPI_{unidade_exp}_{datetime.now().strftime('%Y%m%d')}.docx".replace("/", "-").replace(" ", "_")
-            exportar_epi_word(df_filtrado_c, nome_arq_c, unidade_exp, responsavel, data_ped, cliente_exp)
-            with open(nome_arq_c, "rb") as f:
-                st.download_button("⬇️ BAIXAR WORD (EPI)", f, file_name=nome_arq_c)
-            os.remove(nome_arq_c)
+            if not DOCX_AVAILABLE:
+                st.warning("⚠️ A biblioteca 'python-docx' não está instalada no servidor. Adicione 'python-docx' ao requirements.txt e reinicie o app para habilitar a exportação de EPI em Word.")
+            else:
+                # EPI sempre exporta para Word (.docx)
+                nome_arq_c = f"EPI_{unidade_exp}_{datetime.now().strftime('%Y%m%d')}.docx".replace("/", "-").replace(" ", "_")
+                exportar_epi_word(df_filtrado_c, nome_arq_c, unidade_exp, responsavel, data_ped, cliente_exp)
+                with open(nome_arq_c, "rb") as f:
+                    st.download_button("⬇️ BAIXAR WORD (EPI)", f, file_name=nome_arq_c)
+                os.remove(nome_arq_c)
         else:
             nome_arq_c = f"Compras_{filtro_cliente_c}_{filtro_unidade_c}_{datetime.now().strftime('%Y%m%d')}.xlsx".replace("/", "-").replace(" ", "_")
             if cliente_exp == "Smart Fit":
