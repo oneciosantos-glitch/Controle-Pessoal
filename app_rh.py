@@ -544,57 +544,329 @@ def salvar_compras(df_compras):
         pass
     st.cache_data.clear()
 
+def exportar_smart_fit(df, caminho, unidade, data_pedido="", mes_ref="", separado="", enviado="", endereco=""):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "SMART FIT"
+    azul = "002060"
+    vermelho = "C00000"
+    cinza = "808080"
+    branco = "FFFFFF"
+    borda = Border(left=Side(style="thin", color="000000"), right=Side(style="thin", color="000000"), top=Side(style="thin", color="000000"), bottom=Side(style="thin", color="000000"))
+
+    # Linha 1: Título SMART FIT (merge A1:C1)
+    ws.merge_cells("A1:C1")
+    c = ws["A1"]
+    c.value = "SMART FIT"
+    c.font = Font(name="Arial", size=32, bold=True, color=vermelho)
+    c.alignment = Alignment(horizontal="center", vertical="center")
+    c.fill = PatternFill(start_color=azul, end_color=azul, fill_type="solid")
+    ws.row_dimensions[1].height = 45
+
+    # Linha 2: Unidade + QTD + REF.
+    ws.merge_cells("A2:C2")
+    c = ws["A2"]
+    c.value = unidade.upper()
+    c.font = Font(name="Arial", size=14, bold=True, color=branco)
+    c.alignment = Alignment(horizontal="center", vertical="center")
+    c.fill = PatternFill(start_color=azul, end_color=azul, fill_type="solid")
+    ws.row_dimensions[2].height = 25
+
+    # Linha 3: Cabeçalhos MATERIAL | QTD | REF.
+    for col, val in [(1, "MATERIAL"), (2, "QTD"), (3, "REF.")]:
+        cell = ws.cell(row=3, column=col, value=val)
+        cell.font = Font(name="Arial", size=11, bold=True, color=branco)
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.fill = PatternFill(start_color=cinza, end_color=cinza, fill_type="solid")
+        cell.border = borda
+    ws.row_dimensions[3].height = 22
+
+    # Dados
+    row_start = 4
+    for i, (_, r) in enumerate(df.iterrows()):
+        mat = str(r.get("MATERIAL", "")).strip()
+        qtd = str(r.get("QUANTIDADE", "")).strip()
+        ref = str(r.get("UNIDADE_REF", "UN.")).strip()
+        if mat:
+            ws.cell(row=row_start+i, column=1, value=mat).font = Font(name="Arial", size=11)
+            ws.cell(row=row_start+i, column=1).alignment = Alignment(horizontal="left", vertical="center")
+            ws.cell(row=row_start+i, column=1).border = borda
+            ws.cell(row=row_start+i, column=2, value=qtd).font = Font(name="Arial", size=11)
+            ws.cell(row=row_start+i, column=2).alignment = Alignment(horizontal="center", vertical="center")
+            ws.cell(row=row_start+i, column=2).border = borda
+            ws.cell(row=row_start+i, column=3, value=ref).font = Font(name="Arial", size=11)
+            ws.cell(row=row_start+i, column=3).alignment = Alignment(horizontal="center", vertical="center")
+            ws.cell(row=row_start+i, column=3).border = borda
+
+    last = row_start + len(df) - 1
+    if last < row_start:
+        last = row_start
+    fr = last + 2
+
+    # Rodapé
+    labels = [("DATA DO PEDIDO:", data_pedido), ("MÊS DE REFERÊNCIA:", mes_ref), ("SEPARADO:", separado), ("ENVIADO:", enviado), ("ENDEREÇO:", endereco)]
+    for i, (lbl, val) in enumerate(labels):
+        ws.cell(row=fr+i, column=1, value=lbl).font = Font(name="Arial", size=10, bold=True)
+        ws.cell(row=fr+i, column=1).border = borda
+        ws.cell(row=fr+i, column=2, value=val).font = Font(name="Arial", size=10)
+        ws.cell(row=fr+i, column=2).border = borda
+        ws.merge_cells(start_row=fr+i, start_column=2, end_row=fr+i, end_column=3)
+        ws.cell(row=fr+i, column=3).border = borda
+
+    ws.column_dimensions["A"].width = 50
+    ws.column_dimensions["B"].width = 14
+    ws.column_dimensions["C"].width = 14
+    wb.save(caminho)
+    wb.close()
+
+
+def exportar_self_fit(df, caminho, unidade, data_pedido="", mes_ref="", separado="", enviado="", endereco=""):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "SELF FIT"
+    azul = "002060"
+    vermelho = "C00000"
+    cinza = "808080"
+    branco = "FFFFFF"
+    borda = Border(left=Side(style="thin", color="000000"), right=Side(style="thin", color="000000"), top=Side(style="thin", color="000000"), bottom=Side(style="thin", color="000000"))
+
+    ws.merge_cells("A1:C1")
+    c = ws["A1"]
+    c.value = "SELF FIT"
+    c.font = Font(name="Arial", size=32, bold=True, color=vermelho)
+    c.alignment = Alignment(horizontal="center", vertical="center")
+    c.fill = PatternFill(start_color=azul, end_color=azul, fill_type="solid")
+    ws.row_dimensions[1].height = 45
+
+    ws.merge_cells("A2:C2")
+    c = ws["A2"]
+    c.value = unidade.upper()
+    c.font = Font(name="Arial", size=14, bold=True, color=branco)
+    c.alignment = Alignment(horizontal="center", vertical="center")
+    c.fill = PatternFill(start_color=azul, end_color=azul, fill_type="solid")
+    ws.row_dimensions[2].height = 25
+
+    for col, val in [(1, "MATERIAL"), (2, "QTD"), (3, "REF.")]:
+        cell = ws.cell(row=3, column=col, value=val)
+        cell.font = Font(name="Arial", size=11, bold=True, color=branco)
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.fill = PatternFill(start_color=cinza, end_color=cinza, fill_type="solid")
+        cell.border = borda
+    ws.row_dimensions[3].height = 22
+
+    row_start = 4
+    for i, (_, r) in enumerate(df.iterrows()):
+        mat = str(r.get("MATERIAL", "")).strip()
+        qtd = str(r.get("QUANTIDADE", "")).strip()
+        ref = str(r.get("UNIDADE_REF", "UN.")).strip()
+        if mat:
+            ws.cell(row=row_start+i, column=1, value=mat).font = Font(name="Arial", size=11)
+            ws.cell(row=row_start+i, column=1).alignment = Alignment(horizontal="left", vertical="center")
+            ws.cell(row=row_start+i, column=1).border = borda
+            ws.cell(row=row_start+i, column=2, value=qtd).font = Font(name="Arial", size=11)
+            ws.cell(row=row_start+i, column=2).alignment = Alignment(horizontal="center", vertical="center")
+            ws.cell(row=row_start+i, column=2).border = borda
+            ws.cell(row=row_start+i, column=3, value=ref).font = Font(name="Arial", size=11)
+            ws.cell(row=row_start+i, column=3).alignment = Alignment(horizontal="center", vertical="center")
+            ws.cell(row=row_start+i, column=3).border = borda
+
+    last = row_start + len(df) - 1
+    if last < row_start:
+        last = row_start
+    fr = last + 2
+    labels = [("DATA DO PEDIDO:", data_pedido), ("MÊS DE REFERÊNCIA:", mes_ref), ("SEPARADO:", separado), ("ENVIADO:", enviado), ("ENDEREÇO:", endereco)]
+    for i, (lbl, val) in enumerate(labels):
+        ws.cell(row=fr+i, column=1, value=lbl).font = Font(name="Arial", size=10, bold=True)
+        ws.cell(row=fr+i, column=1).border = borda
+        ws.cell(row=fr+i, column=2, value=val).font = Font(name="Arial", size=10)
+        ws.cell(row=fr+i, column=2).border = borda
+        ws.merge_cells(start_row=fr+i, start_column=2, end_row=fr+i, end_column=3)
+        ws.cell(row=fr+i, column=3).border = borda
+
+    ws.column_dimensions["A"].width = 50
+    ws.column_dimensions["B"].width = 14
+    ws.column_dimensions["C"].width = 14
+    wb.save(caminho)
+    wb.close()
+
+
+def exportar_assai(df, caminho, unidade="", endereco=""):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Orçamento"
+    borda = Border(left=Side(style="thin", color="000000"), right=Side(style="thin", color="000000"), top=Side(style="thin", color="000000"), bottom=Side(style="thin", color="000000"))
+
+    # Cabeçalho empresa
+    ws.merge_cells("A1:G1")
+    ws["A1"].value = "THAMES / FG SERVICES"
+    ws["A1"].font = Font(name="Arial", size=18, bold=True, color="FFFFFF")
+    ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
+    ws["A1"].fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+    ws.row_dimensions[1].height = 35
+
+    ws.merge_cells("A2:G2")
+    ws["A2"].value = "ORÇAMENTO DE MATERIAIS"
+    ws["A2"].font = Font(name="Arial", size=14, bold=True)
+    ws["A2"].alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[2].height = 25
+
+    ws["A4"].value = "Unidade:"
+    ws["A4"].font = Font(bold=True)
+    ws.merge_cells("B4:D4")
+    ws["B4"].value = unidade
+    ws["E4"].value = "Data:"
+    ws["E4"].font = Font(bold=True)
+    ws["F4"].value = datetime.now().strftime("%d/%m/%Y")
+
+    # Tabela
+    headers = ["ID", "LOJA", "MATERIAL", "QUANTIDADE", "DATA", "STATUS", "#N/D"]
+    for col, val in enumerate(headers, 1):
+        cell = ws.cell(row=6, column=col, value=val)
+        cell.font = Font(name="Arial", size=11, bold=True, color="FFFFFF")
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+        cell.border = borda
+
+    for i, (_, r) in enumerate(df.iterrows()):
+        vals = [str(r.get("ID", i+1)), unidade, str(r.get("MATERIAL", "")), str(r.get("QUANTIDADE", "")), str(r.get("DATA_PEDIDO", "")), str(r.get("STATUS", "")), ""]
+        for col, val in enumerate(vals, 1):
+            cell = ws.cell(row=7+i, column=col, value=val)
+            cell.font = Font(name="Arial", size=10)
+            cell.alignment = Alignment(horizontal="center" if col != 3 else "left", vertical="center")
+            cell.border = borda
+
+    last = 7 + len(df) - 1
+    if last < 7:
+        last = 7
+    fr = last + 2
+    ws.cell(row=fr, column=1, value="ENDEREÇO DE ENTREGA:").font = Font(bold=True)
+    ws.merge_cells(start_row=fr, start_column=2, end_row=fr, end_column=7)
+    ws.cell(row=fr, column=2, value=endereco)
+
+    for c in range(1, 8):
+        ws.column_dimensions[get_column_letter(c)].width = 16
+    ws.column_dimensions["C"].width = 40
+    ws.column_dimensions["G"].width = 10
+    wb.save(caminho)
+    wb.close()
+
+
+def exportar_epi_excel(df, caminho, unidade="", responsavel="", data_pedido=""):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "EPI"
+    borda = Border(left=Side(style="thin", color="000000"), right=Side(style="thin", color="000000"), top=Side(style="thin", color="000000"), bottom=Side(style="thin", color="000000"))
+
+    ws.merge_cells("A1:F1")
+    ws["A1"].value = "DISTRIBUIÇÃO DE EPI"
+    ws["A1"].font = Font(name="Arial", size=20, bold=True, color="FFFFFF")
+    ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
+    ws["A1"].fill = PatternFill(start_color="C00000", end_color="C00000", fill_type="solid")
+    ws.row_dimensions[1].height = 35
+
+    ws["A3"].value = "UNIDADE:"
+    ws["A3"].font = Font(bold=True)
+    ws.merge_cells("B3:D3")
+    ws["B3"].value = unidade
+    ws["E3"].value = "RESPONSÁVEL:"
+    ws["E3"].font = Font(bold=True)
+    ws["F3"].value = responsavel
+    ws["A4"].value = "DATA:"
+    ws["A4"].font = Font(bold=True)
+    ws["B4"].value = data_pedido
+
+    # Separar botas e demais EPIs
+    botas = df[df["MATERIAL"].astype(str).str.contains("BOTA", na=False)]
+    outros = df[~df["MATERIAL"].astype(str).str.contains("BOTA", na=False)]
+
+    row = 6
+    if not botas.empty:
+        ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=6)
+        ws.cell(row=row, column=1, value="BOTAS").font = Font(name="Arial", size=12, bold=True, color="FFFFFF")
+        ws.cell(row=row, column=1).alignment = Alignment(horizontal="center", vertical="center")
+        ws.cell(row=row, column=1).fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+        for c in range(1, 7):
+            ws.cell(row=row, column=c).border = borda
+        row += 1
+        for _, r in botas.iterrows():
+            ws.cell(row=row, column=1, value=str(r.get("MATERIAL", ""))).font = Font(name="Arial", size=10)
+            ws.cell(row=row, column=1).border = borda
+            ws.cell(row=row, column=2, value="QTD:").font = Font(name="Arial", size=10, bold=True)
+            ws.cell(row=row, column=2).border = borda
+            ws.cell(row=row, column=3, value=str(r.get("QUANTIDADE", ""))).font = Font(name="Arial", size=10)
+            ws.cell(row=row, column=3).border = borda
+            ws.cell(row=row, column=4, value="REF:").font = Font(name="Arial", size=10, bold=True)
+            ws.cell(row=row, column=4).border = borda
+            ws.cell(row=row, column=5, value=str(r.get("UNIDADE_REF", "PAR"))).font = Font(name="Arial", size=10)
+            ws.cell(row=row, column=5).border = borda
+            ws.merge_cells(start_row=row, start_column=5, end_row=row, end_column=6)
+            ws.cell(row=row, column=6).border = borda
+            row += 1
+
+    if not outros.empty:
+        row += 1
+        ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=6)
+        ws.cell(row=row, column=1, value="EPIs").font = Font(name="Arial", size=12, bold=True, color="FFFFFF")
+        ws.cell(row=row, column=1).alignment = Alignment(horizontal="center", vertical="center")
+        ws.cell(row=row, column=1).fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+        for c in range(1, 7):
+            ws.cell(row=row, column=c).border = borda
+        row += 1
+        for _, r in outros.iterrows():
+            ws.cell(row=row, column=1, value=str(r.get("MATERIAL", ""))).font = Font(name="Arial", size=10)
+            ws.cell(row=row, column=1).border = borda
+            ws.cell(row=row, column=2, value="QTD:").font = Font(name="Arial", size=10, bold=True)
+            ws.cell(row=row, column=2).border = borda
+            ws.cell(row=row, column=3, value=str(r.get("QUANTIDADE", ""))).font = Font(name="Arial", size=10)
+            ws.cell(row=row, column=3).border = borda
+            ws.cell(row=row, column=4, value="REF:").font = Font(name="Arial", size=10, bold=True)
+            ws.cell(row=row, column=4).border = borda
+            ws.cell(row=row, column=5, value=str(r.get("UNIDADE_REF", "UN."))).font = Font(name="Arial", size=10)
+            ws.cell(row=row, column=5).border = borda
+            ws.merge_cells(start_row=row, start_column=5, end_row=row, end_column=6)
+            ws.cell(row=row, column=6).border = borda
+            row += 1
+
+    ws.column_dimensions["A"].width = 40
+    ws.column_dimensions["B"].width = 10
+    ws.column_dimensions["C"].width = 12
+    ws.column_dimensions["D"].width = 10
+    ws.column_dimensions["E"].width = 12
+    ws.column_dimensions["F"].width = 12
+    wb.save(caminho)
+    wb.close()
+
+
 def exportar_compras_formatado(df, caminho):
-    """Exporta DataFrame de compras para Excel com formatação."""
+    """Exporta DataFrame de compras para Excel com formatação genérica (fallback)."""
     df_export = df.copy()
     df_export.to_excel(caminho, index=False, engine="openpyxl")
     wb = load_workbook(caminho)
     ws = wb.active
     ws.title = "Compras"
-
     fill_header = PatternFill(start_color="C00000", end_color="C00000", fill_type="solid")
     font_header = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
     align_header = Alignment(horizontal="center", vertical="center")
-
-    borda = Border(
-        left=Side(style="thin", color="000000"),
-        right=Side(style="thin", color="000000"),
-        top=Side(style="thin", color="000000"),
-        bottom=Side(style="thin", color="000000")
-    )
-
+    borda = Border(left=Side(style="thin", color="000000"), right=Side(style="thin", color="000000"), top=Side(style="thin", color="000000"), bottom=Side(style="thin", color="000000"))
     font_data = Font(name="Calibri", size=11, bold=False, color="000000")
     align_data_center = Alignment(horizontal="center", vertical="center")
     align_data_left = Alignment(horizontal="left", vertical="center")
-
     headers_app = list(df_export.columns)
     for col_idx, header in enumerate(headers_app, 1):
         cell = ws.cell(row=1, column=col_idx)
-        cell.fill = fill_header
-        cell.font = font_header
-        cell.alignment = align_header
-        cell.border = borda
-
+        cell.fill = fill_header; cell.font = font_header; cell.alignment = align_header; cell.border = borda
     for row in ws.iter_rows(min_row=2, max_row=ws.max_row):
         for cell in row:
-            cell.border = borda
-            cell.font = font_data
+            cell.border = borda; cell.font = font_data
             header = ws.cell(row=1, column=cell.column).value
             if header and ("MATERIAL" in str(header).upper() or "OBSERVACAO" in str(header).upper() or "ENDERECO" in str(header).upper()):
                 cell.alignment = align_data_left
             else:
                 cell.alignment = align_data_center
-
-    larguras = {
-        "ID": 8, "CLIENTE": 18, "UNIDADE": 30, "TIPO": 14, "MATERIAL": 35,
-        "QUANTIDADE": 12, "UNIDADE_REF": 10, "STATUS": 16, "DATA_PEDIDO": 14,
-        "MES_REFERENCIA": 14, "SEPARADO": 12, "ENVIADO": 12, "ENDERECO": 40,
-        "RESPONSAVEL": 20, "OBSERVACAO": 35, "DATA_CADASTRO": 18, "ANEXO": 35
-    }
+    larguras = {"ID": 8, "CLIENTE": 18, "UNIDADE": 30, "TIPO": 14, "MATERIAL": 35, "QUANTIDADE": 12, "UNIDADE_REF": 10, "STATUS": 16, "DATA_PEDIDO": 14, "MES_REFERENCIA": 14, "SEPARADO": 12, "ENVIADO": 12, "ENDERECO": 40, "RESPONSAVEL": 20, "OBSERVACAO": 35, "DATA_CADASTRO": 18, "ANEXO": 35}
     for col_idx, header in enumerate(headers_app, 1):
         col_letter = get_column_letter(col_idx)
         ws.column_dimensions[col_letter].width = larguras.get(header, 18)
-
     wb.save(caminho)
     wb.close()
 
@@ -2687,7 +2959,7 @@ with aba10:
 
     CATALOGOS_EPI = {
         "Todos": [
-            "Botas", "Luva Látex", "Óculos de Proteção", "Luva de Vinil",
+            "BOTA", "Luva Látex", "Óculos de Proteção", "Luva de Vinil",
             "Máscara de Proteção", "Protetor Auricular (Plug)", "Protetor Tipo Concha",
             "Luva para Jardineiro", "Avental de Raspa", "Viseira", "Perneira",
             "Meia Térmica", "Japona Térmica", "Calça Térmica", "Luvas Térmicas",
@@ -2774,7 +3046,7 @@ with aba10:
 
     # Itens do pedido
     if "itens_compra" not in st.session_state:
-        st.session_state.itens_compra = [{"material": "", "qtde": 1, "ref": "UN."}]
+        st.session_state.itens_compra = [{"material": "", "qtde": 1, "ref": "UN.", "bota_cano": "CURTO", "bota_numero": 40}]
 
     st.markdown("**Itens do Pedido:**")
     catalogo = CATALOGOS_EPI["Todos"] if tipo_sel == "EPI" else CATALOGOS.get(cliente_sel, CATALOGOS["Smart Fit"])
@@ -2797,8 +3069,28 @@ with aba10:
                 st.session_state.itens_compra.pop(i)
                 st.rerun()
 
+        # Se for BOTA, mostrar opções de cano e número
+        mat_sel = st.session_state.itens_compra[i]["material"]
+        if mat_sel == "BOTA":
+            cols_bota = st.columns([2, 2, 2])
+            with cols_bota[0]:
+                st.session_state.itens_compra[i]["bota_cano"] = st.selectbox(
+                    f"Cano {i+1}", ["CURTO", "MÉDIO", "LONGO"],
+                    index=["CURTO", "MÉDIO", "LONGO"].index(item.get("bota_cano", "CURTO")),
+                    key=f"bota_cano_{i}"
+                )
+            with cols_bota[1]:
+                st.session_state.itens_compra[i]["bota_numero"] = st.selectbox(
+                    f"Número {i+1}", list(range(33, 47)),
+                    index=list(range(33, 47)).index(item.get("bota_numero", 40)),
+                    key=f"bota_numero_{i}"
+                )
+            with cols_bota[2]:
+                st.markdown("<br>", unsafe_allow_html=True)
+                st.caption(f"👉 BOTA CANO {st.session_state.itens_compra[i]['bota_cano']} {st.session_state.itens_compra[i]['bota_numero']}")
+
     if st.button("➕ Adicionar Item", key="add_item_compra"):
-        st.session_state.itens_compra.append({"material": "", "qtde": 1, "ref": "UN."})
+        st.session_state.itens_compra.append({"material": "", "qtde": 1, "ref": "UN.", "bota_cano": "CURTO", "bota_numero": 40})
         st.rerun()
 
     with st.form("nova_compra", clear_on_submit=True):
@@ -2833,12 +3125,17 @@ with aba10:
                     except Exception:
                         novo_id = len(df_compras) + 1
                 for it in itens_validos:
+                    mat = str(it["material"]).strip().upper()
+                    if mat == "BOTA":
+                        cano = str(it.get("bota_cano", "CURTO")).strip().upper()
+                        num = str(it.get("bota_numero", 40)).strip()
+                        mat = f"BOTA CANO {cano} {num}"
                     nova_linha = {
                         "ID": str(novo_id),
                         "CLIENTE": cliente_sel,
                         "UNIDADE": unidade_sel,
                         "TIPO": tipo_sel.upper(),
-                        "MATERIAL": str(it["material"]).strip().upper(),
+                        "MATERIAL": mat,
                         "QUANTIDADE": str(it["qtde"]),
                         "UNIDADE_REF": str(it["ref"]).strip().upper(),
                         "STATUS": status_sel,
@@ -2854,7 +3151,7 @@ with aba10:
                     }
                     df_compras = pd.concat([df_compras, pd.DataFrame([nova_linha])], ignore_index=True)
                 salvar_compras(df_compras)
-                st.session_state.itens_compra = [{"material": "", "qtde": 1, "ref": "UN."}]
+                st.session_state.itens_compra = [{"material": "", "qtde": 1, "ref": "UN.", "bota_cano": "CURTO", "bota_numero": 40}]
                 st.success(f"✅ Pedido #{novo_id} cadastrado com sucesso!")
                 st.rerun()
 
@@ -2900,7 +3197,28 @@ with aba10:
     st.subheader("📤 EXPORTAR PARA EXCEL")
     if not df_filtrado_c.empty:
         nome_arq_c = f"Compras_{filtro_cliente_c}_{filtro_unidade_c}_{datetime.now().strftime('%Y%m%d')}.xlsx".replace("/", "-").replace(" ", "_")
-        exportar_compras_formatado(df_filtrado_c, nome_arq_c)
+        # Pegar metadados do primeiro registro
+        meta = df_filtrado_c.iloc[0]
+        data_ped = str(meta.get("DATA_PEDIDO", ""))
+        mes_ref = str(meta.get("MES_REFERENCIA", ""))
+        separado = str(meta.get("SEPARADO", ""))
+        enviado = str(meta.get("ENVIADO", ""))
+        endereco = str(meta.get("ENDERECO", ""))
+        responsavel = str(meta.get("RESPONSAVEL", ""))
+        cliente_exp = str(meta.get("CLIENTE", filtro_cliente_c))
+        unidade_exp = str(meta.get("UNIDADE", filtro_unidade_c))
+        tipo_exp = str(meta.get("TIPO", "")).upper()
+
+        if cliente_exp == "Smart Fit":
+            exportar_smart_fit(df_filtrado_c, nome_arq_c, unidade_exp, data_ped, mes_ref, separado, enviado, endereco)
+        elif cliente_exp == "Self Fit":
+            exportar_self_fit(df_filtrado_c, nome_arq_c, unidade_exp, data_ped, mes_ref, separado, enviado, endereco)
+        elif cliente_exp == "Assaí Atacadista":
+            exportar_assai(df_filtrado_c, nome_arq_c, unidade_exp, endereco)
+        elif tipo_exp == "EPI":
+            exportar_epi_excel(df_filtrado_c, nome_arq_c, unidade_exp, responsavel, data_ped)
+        else:
+            exportar_compras_formatado(df_filtrado_c, nome_arq_c)
         with open(nome_arq_c, "rb") as f:
             st.download_button("⬇️ BAIXAR EXCEL", f, file_name=nome_arq_c)
         os.remove(nome_arq_c)
