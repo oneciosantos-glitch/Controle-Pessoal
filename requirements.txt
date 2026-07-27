@@ -1,3 +1,4 @@
+                
 streamlit
 pandas
 openpyxl
@@ -5,6 +6,5 @@ Pillow
 matplotlib
 requests
 gspread
-fpdf
 reportlab
 python-docx
