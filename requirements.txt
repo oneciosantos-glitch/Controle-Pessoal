@@ -7,3 +7,4 @@ requests
 gspread
 fpdf
 reportlab
+python-docx
