@@ -7,4 +7,3 @@ matplotlib
 requests
 gspread
 reportlab
-python-docx
