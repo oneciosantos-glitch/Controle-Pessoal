@@ -2601,6 +2601,175 @@ with aba9:
             with col_ev:
                 st.markdown("**🗑️ Para excluir:** delete as linhas na tabela (tecla Delete) e clique em SALVAR ALTERAÇÕES.")
 
+
+        # --- RESUMO, GRÁFICOS E EXPORTAÇÃO ---
+        st.markdown("---")
+        st.markdown("### 📊 RESUMO E ANÁLISE DE VIAGENS")
+
+        if df_viagens.empty:
+            st.info("ℹ️ Nenhuma viagem registrada para gerar resumos e gráficos.")
+        else:
+            try:
+                df_v_num = df_viagens.copy()
+                for col in ["VALOR_LIBERADO", "TOTAL_GASTO", "RESTANTE"]:
+                    df_v_num[col] = pd.to_numeric(df_v_num[col].astype(str).str.replace(",", "."), errors="coerce").fillna(0)
+
+                total_viagens = len(df_v_num)
+                total_liberado = df_v_num["VALOR_LIBERADO"].sum()
+                total_gasto = df_v_num["TOTAL_GASTO"].sum()
+                total_restante = df_v_num["RESTANTE"].sum()
+                media_gasto = df_v_num["TOTAL_GASTO"].mean()
+
+                r1, r2, r3, r4, r5 = st.columns(5)
+                with r1:
+                    st.metric("🧳 Viagens", f"{total_viagens}")
+                with r2:
+                    st.metric("💰 Liberado", f"R$ {total_liberado:,.2f}")
+                with r3:
+                    st.metric("💸 Gasto", f"R$ {total_gasto:,.2f}")
+                with r4:
+                    st.metric("📊 Restante", f"R$ {total_restante:,.2f}")
+                with r5:
+                    st.metric("📈 Média Gasto", f"R$ {media_gasto:,.2f}")
+
+                st.markdown("---")
+                st.markdown("#### 📈 Gráficos")
+
+                g1, g2 = st.columns(2)
+                with g1:
+                    status_counts = df_v_num["STATUS"].value_counts()
+                    if not status_counts.empty:
+                        fig1, ax1 = plt.subplots(figsize=(4.5, 3.5))
+                        colors = {"Planejada": "#3498db", "Em Andamento": "#f1c40f", "Concluída": "#2ecc71", "Cancelada": "#e74c3c"}
+                        pie_colors = [colors.get(s, "#95a5a6") for s in status_counts.index]
+                        ax1.pie(status_counts.values, labels=status_counts.index, autopct="%1.1f%%", colors=pie_colors, startangle=90)
+                        ax1.set_title("Distribuição por Status", fontsize=10, fontweight="bold")
+                        plt.tight_layout()
+                        st.pyplot(fig1)
+                        plt.close(fig1)
+
+                with g2:
+                    top_colab = df_v_num.groupby("COLABORADOR")["TOTAL_GASTO"].sum().sort_values(ascending=True).tail(10)
+                    if not top_colab.empty:
+                        fig2, ax2 = plt.subplots(figsize=(4.5, 3.5))
+                        top_colab.plot(kind="barh", ax=ax2, color="#2ecc71")
+                        ax2.set_title("Top 10 Colaboradores - Total Gasto", fontsize=10, fontweight="bold")
+                        ax2.set_xlabel("R$", fontsize=8)
+                        plt.tight_layout()
+                        st.pyplot(fig2)
+                        plt.close(fig2)
+
+                g3, g4 = st.columns(2)
+                with g3:
+                    loja_gasto = df_v_num.groupby("LOJA")["TOTAL_GASTO"].sum().sort_values(ascending=False).head(10)
+                    if not loja_gasto.empty:
+                        fig3, ax3 = plt.subplots(figsize=(4.5, 3.5))
+                        loja_gasto.plot(kind="bar", ax=ax3, color="#3498db")
+                        ax3.set_title("Top 10 Lojas - Total Gasto", fontsize=10, fontweight="bold")
+                        ax3.set_ylabel("R$", fontsize=8)
+                        ax3.tick_params(axis="x", rotation=45, labelsize=7)
+                        plt.tight_layout()
+                        st.pyplot(fig3)
+                        plt.close(fig3)
+
+                with g4:
+                    try:
+                        df_v_num["MES"] = pd.to_datetime(df_v_num["DATA_CADASTRO"], format="%d/%m/%Y %H:%M", errors="coerce").dt.to_period("M").astype(str)
+                        mes_counts = df_v_num["MES"].value_counts().sort_index().tail(12)
+                        if not mes_counts.empty:
+                            fig4, ax4 = plt.subplots(figsize=(4.5, 3.5))
+                            mes_counts.plot(kind="line", ax=ax4, marker="o", color="#e74c3c")
+                            ax4.set_title("Viagens por Mês (últimos 12)", fontsize=10, fontweight="bold")
+                            ax4.set_ylabel("Quantidade", fontsize=8)
+                            ax4.tick_params(axis="x", rotation=45, labelsize=7)
+                            plt.tight_layout()
+                            st.pyplot(fig4)
+                            plt.close(fig4)
+                    except Exception:
+                        pass
+
+                st.markdown("---")
+                st.markdown("#### 📥 EXPORTAR DADOS")
+                e1, e2 = st.columns(2)
+                with e1:
+                    excel_buffer = io.BytesIO()
+                    with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
+                        df_v_num.to_excel(writer, sheet_name="Viagens", index=False)
+                    st.download_button(
+                        label="📊 EXPORTAR EXCEL",
+                        data=excel_buffer.getvalue(),
+                        file_name=f"Resumo_Viagens_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        use_container_width=True,
+                    )
+                with e2:
+                    try:
+                        from reportlab.lib.pagesizes import letter
+                        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+                        from reportlab.lib.styles import getSampleStyleSheet
+                        from reportlab.lib import colors
+
+                        pdf_buffer = io.BytesIO()
+                        doc = SimpleDocTemplate(pdf_buffer, pagesize=letter)
+                        elements = []
+                        styles = getSampleStyleSheet()
+                        elements.append(Paragraph("<b>RESUMO DE VIAGENS</b>", styles["Title"]))
+                        elements.append(Paragraph(f"Gerado em: {datetime.now().strftime('%d/%m/%Y %H:%M')}", styles["Normal"]))
+                        elements.append(Spacer(1, 12))
+
+                        # Resumo em tabela
+                        resumo_data = [
+                            ["Total de Viagens", str(total_viagens)],
+                            ["Total Liberado", f"R$ {total_liberado:,.2f}"],
+                            ["Total Gasto", f"R$ {total_gasto:,.2f}"],
+                            ["Total Restante", f"R$ {total_restante:,.2f}"],
+                            ["Média de Gasto", f"R$ {media_gasto:,.2f}"],
+                        ]
+                        t_resumo = Table(resumo_data, colWidths=[200, 200])
+                        t_resumo.setStyle(TableStyle([
+                            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#3498db")),
+                            ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+                            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                            ("FONTSIZE", (0, 0), (-1, 0), 10),
+                            ("BOTTOMPADDING", (0, 0), (-1, 0), 8),
+                            ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#ecf0f1")),
+                            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                        ]))
+                        elements.append(t_resumo)
+                        elements.append(Spacer(1, 20))
+
+                        # Tabela de viagens (top 30)
+                        top_df = df_v_num.sort_values("TOTAL_GASTO", ascending=False).head(30)
+                        top_df = top_df[["NUMERO_VIAGEM", "COLABORADOR", "LOJA", "DESTINO", "VALOR_LIBERADO", "TOTAL_GASTO", "RESTANTE", "STATUS"]]
+                        top_df = top_df.fillna("")
+                        table_data = [top_df.columns.tolist()] + top_df.values.tolist()
+                        t_viagens = Table(table_data, repeatRows=1)
+                        t_viagens.setStyle(TableStyle([
+                            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2c3e50")),
+                            ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+                            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                            ("FONTSIZE", (0, 0), (-1, 0), 9),
+                            ("BOTTOMPADDING", (0, 0), (-1, 0), 6),
+                            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                            ("FONTSIZE", (0, 1), (-1, -1), 8),
+                        ]))
+                        elements.append(t_viagens)
+                        doc.build(elements)
+                        st.download_button(
+                            label="📄 EXPORTAR PDF RESUMO",
+                            data=pdf_buffer.getvalue(),
+                            file_name=f"Resumo_Viagens_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+                            mime="application/pdf",
+                            use_container_width=True,
+                        )
+                    except Exception as e_pdf:
+                        st.error(f"Erro ao gerar PDF: {e_pdf}")
+
+            except Exception as e:
+                st.error(f"Erro ao gerar resumos: {e}")
+
 # ================ ABA 10 - BACKUP / RESTAURAÇÃO ================
 with aba10:
     st.subheader("💾 BACKUP E RESTAURAÇÃO")
