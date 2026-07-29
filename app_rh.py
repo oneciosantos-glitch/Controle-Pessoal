@@ -45,6 +45,7 @@ except Exception:
 # ====================== CONFIGURAÇÕES GERAIS ======================
 ARQUIVO = "dados_funcionarios.xlsx"
 ARQUIVO_DIARIAS = "controle_diarias.xlsx"
+ARQUIVO_VIAGENS = "registro_viagens.xlsx"
 PASTA_DOCS = "Documentos_Lojas"
 PASTA_DOCS_FUNC = "Documentos_Funcionarios"
 PASTA_FOTOS = "Fotos_Funcionarios"
@@ -511,6 +512,39 @@ def exportar_diarias_formatado(df, caminho):
     wb.save(caminho)
     wb.close()
 
+
+@st.cache_data(ttl=0, show_spinner=False)
+def carregar_viagens():
+    """Carrega o registro de viagens do arquivo Excel."""
+    cols_padrao = [
+        "ID", "NUMERO_VIAGEM", "COLABORADOR", "LOJA", "ORIGEM", "DESTINO",
+        "MOTIVO", "DATA_SAIDA", "DATA_RETORNO", "VALOR_LIBERADO", "TOTAL_GASTO",
+        "RESTANTE", "STATUS", "OBSERVACOES", "DATA_CADASTRO"
+    ]
+    if not os.path.exists(ARQUIVO_VIAGENS):
+        return pd.DataFrame(columns=cols_padrao)
+    try:
+        df = pd.read_excel(ARQUIVO_VIAGENS, dtype=str, keep_default_na=False)
+    except Exception:
+        return pd.DataFrame(columns=cols_padrao)
+    for col in cols_padrao:
+        if col not in df.columns:
+            df[col] = ""
+    for col in ["VALOR_LIBERADO", "TOTAL_GASTO", "RESTANTE"]:
+        df[col] = df[col].astype(str).str.strip()
+        df[col] = df[col].replace("", "0.00")
+    return df[cols_padrao]
+
+
+def salvar_viagens(df_viagens):
+    """Salva o registro de viagens no arquivo Excel."""
+    try:
+        with pd.ExcelWriter(ARQUIVO_VIAGENS, engine="openpyxl", mode="w") as f:
+            df_viagens.to_excel(f, sheet_name="Viagens", index=False)
+    except Exception:
+        pass
+    st.cache_data.clear()
+
 # ====================== BACKUP / RESTORE ======================
 import zipfile
 import io
@@ -520,7 +554,7 @@ def criar_backup_zip():
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
         # Arquivos Excel principais
-        for arq in [ARQUIVO, ARQUIVO_DIARIAS]:
+        for arq in [ARQUIVO, ARQUIVO_DIARIAS, ARQUIVO_VIAGENS]:
             if os.path.exists(arq):
                 zf.write(arq, arq)
         # Pastas de documentos, fotos e comprovantes
@@ -1003,8 +1037,9 @@ with aba1:
         situacao_val = "Ativo"
 
     if st.button("🗑️ LIMPAR TODOS OS CAMPOS", use_container_width=True, type="secondary"):
+        if "autocomplete_func" in st.session_state:
+            del st.session_state["autocomplete_func"]
         st.rerun()
-
     with st.form("form_cadastro", clear_on_submit=True):
         st.subheader("Dados Básicos")
         col_foto, col_dados = st.columns([1,3])
@@ -2025,160 +2060,286 @@ def gerar_pdf_rota(tipo, origem, destino, distancia, tempo_info, custo_ida=None,
 # ================ ABA 9 - GUIA VIAGEM ================
 with aba9:
     st.subheader("🗺️ GUIA DE VIAGEM")
-    st.info("Pesquise origem e destino para ver distância, tempo estimado, custo e rota no mapa.")
+    sub_aba_rotas, sub_aba_viagens = st.tabs(["🧭 Calculadora de Rotas", "📝 Registro de Viagens"])
 
-    # --- Dados dos combos ---
-    PAÍSES = [
-        "Brasil", "Argentina", "Bolívia", "Chile", "Colômbia", "Equador", "Guiana",
-        "Paraguai", "Peru", "Suriname", "Uruguai", "Venezuela", "Estados Unidos",
-        "Canadá", "México", "Portugal", "Espanha", "França", "Alemanha", "Itália",
-        "Reino Unido", "Japão", "China", "Austrália", "Nova Zelândia", "África do Sul",
-        "Índia", "Rússia", "Ucrânia", "Turquia", "Emirados Árabes Unidos"
-    ]
-    ESTADOS_BR = [
-        "Acre (AC)", "Alagoas (AL)", "Amapá (AP)", "Amazonas (AM)", "Bahia (BA)",
-        "Ceará (CE)", "Distrito Federal (DF)", "Espírito Santo (ES)", "Goiás (GO)",
-        "Maranhão (MA)", "Mato Grosso (MT)", "Mato Grosso do Sul (MS)", "Minas Gerais (MG)",
-        "Pará (PA)", "Paraíba (PB)", "Paraná (PR)", "Pernambuco (PE)", "Piauí (PI)",
-        "Rio de Janeiro (RJ)", "Rio Grande do Norte (RN)", "Rio Grande do Sul (RS)",
-        "Rondônia (RO)", "Roraima (RR)", "Santa Catarina (SC)", "São Paulo (SP)",
-        "Sergipe (SE)", "Tocantins (TO)"
-    ]
-    ESTADOS_US = [
-        "Alabama (AL)", "Alaska (AK)", "Arizona (AZ)", "Arkansas (AR)", "Califórnia (CA)",
-        "Carolina do Norte (NC)", "Carolina do Sul (SC)", "Colorado (CO)", "Connecticut (CT)",
-        "Dakota do Norte (ND)", "Dakota do Sul (SD)", "Delaware (DE)", "Flórida (FL)",
-        "Geórgia (GA)", "Havaí (HI)", "Idaho (ID)", "Illinois (IL)", "Indiana (IN)",
-        "Iowa (IA)", "Kansas (KS)", "Kentucky (KY)", "Louisiana (LA)", "Maine (ME)",
-        "Maryland (MD)", "Massachusetts (MA)", "Michigan (MI)", "Minnesota (MN)",
-        "Mississippi (MS)", "Missouri (MO)", "Montana (MT)", "Nebraska (NE)", "Nevada (NV)",
-        "Nova Hampshire (NH)", "Nova Jersey (NJ)", "Nova York (NY)", "Novo México (NM)",
-        "Ohio (OH)", "Oklahoma (OK)", "Oregon (OR)", "Pensilvânia (PA)", "Rhode Island (RI)",
-        "Tennessee (TN)", "Texas (TX)", "Utah (UT)", "Vermont (VT)", "Virgínia (VA)",
-        "Virgínia Ocidental (WV)", "Washington (WA)", "Wisconsin (WI)", "Wyoming (WY)"
-    ]
-    ESTADOS_MX = [
-        "Aguascalientes", "Baja California", "Baja California Sur", "Campeche", "Chiapas",
-        "Chihuahua", "Coahuila", "Colima", "Durango", "Guanajuato", "Guerrero", "Hidalgo",
-        "Jalisco", "México", "Michoacán", "Morelos", "Nayarit", "Nuevo León", "Oaxaca",
-        "Puebla", "Querétaro", "Quintana Roo", "San Luis Potosí", "Sinaloa", "Sonora",
-        "Tabasco", "Tamaulipas", "Tlaxcala", "Veracruz", "Yucatán", "Zacatecas",
-        "Cidade do México"
-    ]
+    with sub_aba_rotas:
+        st.info("Pesquise origem e destino para ver distância, tempo estimado, custo e rota no mapa.")
 
-    @st.cache_data(ttl=86400, show_spinner=False)
-    def buscar_cidades_ibge(uf_sigla):
-        """Busca lista de municípios do IBGE pela sigla da UF."""
-        try:
-            url = f"https://servicodados.ibge.gov.br/api/v1/localidades/estados/{uf_sigla}/municipios"
-            resp = requests.get(url, timeout=15)
-            if resp.status_code == 200:
-                dados = resp.json()
-                cidades = sorted([m["nome"] for m in dados])
-                return cidades
-        except Exception:
-            pass
-        return []
+        # --- Dados dos combos ---
+        PAÍSES = [
+            "Brasil", "Argentina", "Bolívia", "Chile", "Colômbia", "Equador", "Guiana",
+            "Paraguai", "Peru", "Suriname", "Uruguai", "Venezuela", "Estados Unidos",
+            "Canadá", "México", "Portugal", "Espanha", "França", "Alemanha", "Itália",
+            "Reino Unido", "Japão", "China", "Austrália", "Nova Zelândia", "África do Sul",
+            "Índia", "Rússia", "Ucrânia", "Turquia", "Emirados Árabes Unidos"
+        ]
+        ESTADOS_BR = [
+            "Acre (AC)", "Alagoas (AL)", "Amapá (AP)", "Amazonas (AM)", "Bahia (BA)",
+            "Ceará (CE)", "Distrito Federal (DF)", "Espírito Santo (ES)", "Goiás (GO)",
+            "Maranhão (MA)", "Mato Grosso (MT)", "Mato Grosso do Sul (MS)", "Minas Gerais (MG)",
+            "Pará (PA)", "Paraíba (PB)", "Paraná (PR)", "Pernambuco (PE)", "Piauí (PI)",
+            "Rio de Janeiro (RJ)", "Rio Grande do Norte (RN)", "Rio Grande do Sul (RS)",
+            "Rondônia (RO)", "Roraima (RR)", "Santa Catarina (SC)", "São Paulo (SP)",
+            "Sergipe (SE)", "Tocantins (TO)"
+        ]
+        ESTADOS_US = [
+            "Alabama (AL)", "Alaska (AK)", "Arizona (AZ)", "Arkansas (AR)", "Califórnia (CA)",
+            "Carolina do Norte (NC)", "Carolina do Sul (SC)", "Colorado (CO)", "Connecticut (CT)",
+            "Dakota do Norte (ND)", "Dakota do Sul (SD)", "Delaware (DE)", "Flórida (FL)",
+            "Geórgia (GA)", "Havaí (HI)", "Idaho (ID)", "Illinois (IL)", "Indiana (IN)",
+            "Iowa (IA)", "Kansas (KS)", "Kentucky (KY)", "Louisiana (LA)", "Maine (ME)",
+            "Maryland (MD)", "Massachusetts (MA)", "Michigan (MI)", "Minnesota (MN)",
+            "Mississippi (MS)", "Missouri (MO)", "Montana (MT)", "Nebraska (NE)", "Nevada (NV)",
+            "Nova Hampshire (NH)", "Nova Jersey (NJ)", "Nova York (NY)", "Novo México (NM)",
+            "Ohio (OH)", "Oklahoma (OK)", "Oregon (OR)", "Pensilvânia (PA)", "Rhode Island (RI)",
+            "Tennessee (TN)", "Texas (TX)", "Utah (UT)", "Vermont (VT)", "Virgínia (VA)",
+            "Virgínia Ocidental (WV)", "Washington (WA)", "Wisconsin (WI)", "Wyoming (WY)"
+        ]
+        ESTADOS_MX = [
+            "Aguascalientes", "Baja California", "Baja California Sur", "Campeche", "Chiapas",
+            "Chihuahua", "Coahuila", "Colima", "Durango", "Guanajuato", "Guerrero", "Hidalgo",
+            "Jalisco", "México", "Michoacán", "Morelos", "Nayarit", "Nuevo León", "Oaxaca",
+            "Puebla", "Querétaro", "Quintana Roo", "San Luis Potosí", "Sinaloa", "Sonora",
+            "Tabasco", "Tamaulipas", "Tlaxcala", "Veracruz", "Yucatán", "Zacatecas",
+            "Cidade do México"
+        ]
 
-    def input_endereco(label, key_prefix):
-        """Monta os inputs de endereço com combos de país, estado e cidade."""
-        st.markdown(f"**{label}**")
-        pais = st.selectbox(f"🌍 País", PAÍSES, key=f"{key_prefix}_pais")
-        if pais == "Brasil":
-            estado = st.selectbox(f"🏛️ Estado", ESTADOS_BR, key=f"{key_prefix}_estado")
-            estado_limp = estado.split(" (")[0] if "(" in estado else estado
-            uf_sigla = estado.split("(")[1].replace(")", "").strip() if "(" in estado else ""
-            cidades = buscar_cidades_ibge(uf_sigla) if uf_sigla else []
-            if cidades:
-                cidade = st.selectbox(f"🏙️ Cidade", cidades, key=f"{key_prefix}_cidade")
+        @st.cache_data(ttl=86400, show_spinner=False)
+        def buscar_cidades_ibge(uf_sigla):
+            """Busca lista de municípios do IBGE pela sigla da UF."""
+            try:
+                url = f"https://servicodados.ibge.gov.br/api/v1/localidades/estados/{uf_sigla}/municipios"
+                resp = requests.get(url, timeout=15)
+                if resp.status_code == 200:
+                    dados = resp.json()
+                    cidades = sorted([m["nome"] for m in dados])
+                    return cidades
+            except Exception:
+                pass
+            return []
+
+        def input_endereco(label, key_prefix):
+            """Monta os inputs de endereço com combos de país, estado e cidade."""
+            st.markdown(f"**{label}**")
+            pais = st.selectbox(f"🌍 País", PAÍSES, key=f"{key_prefix}_pais")
+            if pais == "Brasil":
+                estado = st.selectbox(f"🏛️ Estado", ESTADOS_BR, key=f"{key_prefix}_estado")
+                estado_limp = estado.split(" (")[0] if "(" in estado else estado
+                uf_sigla = estado.split("(")[1].replace(")", "").strip() if "(" in estado else ""
+                cidades = buscar_cidades_ibge(uf_sigla) if uf_sigla else []
+                if cidades:
+                    cidade = st.selectbox(f"🏙️ Cidade", cidades, key=f"{key_prefix}_cidade")
+                else:
+                    cidade = st.text_input(f"🏙️ Cidade", placeholder="Ex: Belém", key=f"{key_prefix}_cidade")
+            elif pais == "Estados Unidos":
+                estado = st.selectbox(f"🏛️ Estado", ESTADOS_US, key=f"{key_prefix}_estado")
+                estado_limp = estado.split(" (")[0] if "(" in estado else estado
+                cidade = st.text_input(f"🏙️ Cidade", placeholder="Ex: Nova York", key=f"{key_prefix}_cidade")
+            elif pais == "México":
+                estado = st.selectbox(f"🏛️ Estado", ESTADOS_MX, key=f"{key_prefix}_estado")
+                estado_limp = estado
+                cidade = st.text_input(f"🏙️ Cidade", placeholder="Ex: Cidade do México", key=f"{key_prefix}_cidade")
             else:
+                estado_limp = st.text_input(f"🏛️ Estado / Província", key=f"{key_prefix}_estado")
                 cidade = st.text_input(f"🏙️ Cidade", placeholder="Ex: Belém", key=f"{key_prefix}_cidade")
-        elif pais == "Estados Unidos":
-            estado = st.selectbox(f"🏛️ Estado", ESTADOS_US, key=f"{key_prefix}_estado")
-            estado_limp = estado.split(" (")[0] if "(" in estado else estado
-            cidade = st.text_input(f"🏙️ Cidade", placeholder="Ex: Nova York", key=f"{key_prefix}_cidade")
-        elif pais == "México":
-            estado = st.selectbox(f"🏛️ Estado", ESTADOS_MX, key=f"{key_prefix}_estado")
-            estado_limp = estado
-            cidade = st.text_input(f"🏙️ Cidade", placeholder="Ex: Cidade do México", key=f"{key_prefix}_cidade")
-        else:
-            estado_limp = st.text_input(f"🏛️ Estado / Província", key=f"{key_prefix}_estado")
-            cidade = st.text_input(f"🏙️ Cidade", placeholder="Ex: Belém", key=f"{key_prefix}_cidade")
-        endereco = f"{cidade}, {estado_limp}, {pais}" if str(cidade).strip() and str(estado_limp).strip() else ""
-        return endereco, pais
+            endereco = f"{cidade}, {estado_limp}, {pais}" if str(cidade).strip() and str(estado_limp).strip() else ""
+            return endereco, pais
 
-    col_o, col_d = st.columns(2)
-    with col_o:
-        origem_str, pais_o = input_endereco("📍 ORIGEM", "orig")
-    with col_d:
-        destino_str, pais_d = input_endereco("📍 DESTINO", "dest")
+        col_o, col_d = st.columns(2)
+        with col_o:
+            origem_str, pais_o = input_endereco("📍 ORIGEM", "orig")
+        with col_d:
+            destino_str, pais_d = input_endereco("📍 DESTINO", "dest")
 
-    transporte = st.selectbox("🚗 Meio de Transporte", ["Carro", "Avião"])
+        transporte = st.selectbox("🚗 Meio de Transporte", ["Carro", "Avião"])
 
-    if st.button("🚀 CALCULAR ROTA", type="primary"):
-        if not origem_str.strip() or not destino_str.strip():
-            st.warning("⚠️ Preencha cidade, estado e país tanto na origem quanto no destino.")
-        else:
-            with st.spinner("Consultando rota..."):
-                lat1, lon1 = geocodificar(origem_str.strip())
-                lat2, lon2 = geocodificar(destino_str.strip())
-            if lat1 is None or lat2 is None:
-                st.error("❌ Não foi possível localizar um ou ambos os endereços. Tente incluir a cidade mais próxima ou verificar a grafia.")
+        if st.button("🚀 CALCULAR ROTA", type="primary"):
+            if not origem_str.strip() or not destino_str.strip():
+                st.warning("⚠️ Preencha cidade, estado e país tanto na origem quanto no destino.")
             else:
-                st.success("✅ Pontos localizados com sucesso!")
-                st.markdown("---")
-                cidade_origem = origem_str.split(",")[0].strip()
-                cidade_destino = destino_str.split(",")[0].strip()
+                with st.spinner("Consultando rota..."):
+                    lat1, lon1 = geocodificar(origem_str.strip())
+                    lat2, lon2 = geocodificar(destino_str.strip())
+                if lat1 is None or lat2 is None:
+                    st.error("❌ Não foi possível localizar um ou ambos os endereços. Tente incluir a cidade mais próxima ou verificar a grafia.")
+                else:
+                    st.success("✅ Pontos localizados com sucesso!")
+                    st.markdown("---")
+                    cidade_origem = origem_str.split(",")[0].strip()
+                    cidade_destino = destino_str.split(",")[0].strip()
 
-                # ---- CARRO ----
-                if transporte == "Carro":
-                    distancia, tempo, geometria = calcular_rota(lat1, lon1, lat2, lon2)
-                    if distancia is None:
-                        st.error("❌ Não foi possível calcular a rota de carro. Tente novamente mais tarde.")
+                    # ---- CARRO ----
+                    if transporte == "Carro":
+                        distancia, tempo, geometria = calcular_rota(lat1, lon1, lat2, lon2)
+                        if distancia is None:
+                            st.error("❌ Não foi possível calcular a rota de carro. Tente novamente mais tarde.")
+                        else:
+                            st.subheader("📊 RESUMO DA ROTA (CARRO)")
+                            c1, c2, c3 = st.columns(3)
+                            with c1:
+                                st.metric("📏 Distância", f"{distancia:.1f} km")
+                            with c2:
+                                horas = int(tempo // 60)
+                                mins = int(tempo % 60)
+                                st.metric("⏱️ Tempo Estimado", f"{horas}h {mins}min")
+                            with c3:
+                                st.metric("💰 Pedágio", "Consultar via app")
+
+                            # Combustível
+                            st.markdown("---")
+                            st.subheader("⛽ CUSTO ESTIMADO DE COMBUSTÍVEL")
+                            cc1, cc2 = st.columns(2)
+                            with cc1:
+                                preco_litro = st.number_input("Preço/Litro (R$)", min_value=0.0, value=5.89, step=0.01, format="%.2f", key="preco_carro")
+                            with cc2:
+                                consumo_km_l = st.number_input("Consumo (km/L)", min_value=0.1, value=10.0, step=0.1, format="%.1f", key="consumo_carro")
+                            if preco_litro > 0 and consumo_km_l > 0:
+                                litros = distancia / consumo_km_l
+                                custo_ida = litros * preco_litro
+                                custo_ida_volta = custo_ida * 2
+                                cb1, cb2 = st.columns(2)
+                                with cb1:
+                                    st.metric("⛽ Ida", f"R$ {custo_ida:,.2f}")
+                                with cb2:
+                                    st.metric("⛽ Ida + Volta", f"R$ {custo_ida_volta:,.2f}")
+                                st.info(f"💡 Litros necessários (ida): **{litros:.1f} L** | Preço/L: R$ {preco_litro:.2f} | Consumo: {consumo_km_l:.1f} km/L")
+
+                            # PDF
+                            st.markdown("---")
+                            pdf_bytes = gerar_pdf_rota(
+                                tipo="Carro",
+                                origem=origem_str,
+                                destino=destino_str,
+                                distancia=distancia,
+                                tempo_info=f"{horas}h {mins}min",
+                                custo_ida=custo_ida if (preco_litro > 0 and consumo_km_l > 0) else None,
+                                custo_volta=custo_ida_volta if (preco_litro > 0 and consumo_km_l > 0) else None,
+                                litros=litros if (preco_litro > 0 and consumo_km_l > 0) else None,
+                                preco_litro=preco_litro if (preco_litro > 0 and consumo_km_l > 0) else None,
+                                consumo=consumo_km_l if (preco_litro > 0 and consumo_km_l > 0) else None,
+                            )
+                            if pdf_bytes:
+                                st.download_button(
+                                    label="📄 BAIXAR RESUMO EM PDF",
+                                    data=pdf_bytes,
+                                    file_name=f"Resumo_Viagem_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+                                    mime="application/pdf"
+                                )
+                            else:
+                                st.warning("⚠️ Não foi possível gerar o PDF. Verifique se a biblioteca `reportlab` está instalada.")
+
+                            # Mapa com linha
+                            st.markdown("---")
+                            st.subheader("🗺️ Visualização da Rota")
+                            try:
+                                import pydeck as pdk
+                                coords = geometria["coordinates"]
+                                path_coords = coords  # já é [lon, lat]
+                                mid_lat = (lat1 + lat2) / 2
+                                mid_lon = (lon1 + lon2) / 2
+                                zoom_lvl = calcular_zoom(distancia)
+
+                                path_layer = pdk.Layer(
+                                    "PathLayer",
+                                    data=[{"path": path_coords, "color": [255, 60, 0]}],
+                                    get_path="path",
+                                    get_color="color",
+                                    width_scale=20,
+                                    width_min_pixels=4,
+                                )
+                                scatter_layer = pdk.Layer(
+                                    "ScatterplotLayer",
+                                    data=[
+                                        {"position": [lon1, lat1], "color": [0, 200, 0]},
+                                        {"position": [lon2, lat2], "color": [255, 0, 0]},
+                                    ],
+                                    get_position="position",
+                                    get_color="color",
+                                    get_radius=20000,
+                                    radius_min_pixels=8,
+                                    radius_max_pixels=25,
+                                )
+                                text_layer = pdk.Layer(
+                                    "TextLayer",
+                                    data=[
+                                        {"position": [lon1, lat1], "text": cidade_origem, "color": [0, 200, 0]},
+                                        {"position": [lon2, lat2], "text": cidade_destino, "color": [255, 0, 0]},
+                                    ],
+                                    get_position="position",
+                                    get_text="text",
+                                    get_color="color",
+                                    get_size=18,
+                                    get_text_anchor="middle",
+                                    get_alignment_baseline="bottom",
+                                    size_units="pixels",
+                                )
+                                view_state = pdk.ViewState(
+                                    latitude=mid_lat, longitude=mid_lon,
+                                    zoom=zoom_lvl, pitch=0
+                                )
+                                st.pydeck_chart(pdk.Deck(
+                                    layers=[path_layer, scatter_layer, text_layer],
+                                    initial_view_state=view_state,
+                                    tooltip={"text": "Rota de carro"},
+                                    height=800,
+                                ))
+                                st.caption("🟢 Origem  |  🔴 Destino  |  🟠 Linha = rota por estrada")
+                            except Exception as e:
+                                st.warning(f"Não foi possível exibir o mapa: {e}")
+
+                            # Instruções passo a passo
+                            st.markdown("---")
+                            st.subheader("📝 Instruções de Rota (passo a passo)")
+                            try:
+                                url = f"http://router.project-osrm.org/route/v1/driving/{lon1},{lat1};{lon2},{lat2}"
+                                params = {"overview": "false", "steps": "true"}
+                                resp = requests.get(url, params=params, timeout=20)
+                                dados_inst = resp.json()
+                                if dados_inst.get("routes"):
+                                    legs = dados_inst["routes"][0]["legs"][0]
+                                    passos = []
+                                    for step in legs.get("steps", []):
+                                        nome = step.get("name", "")
+                                        dist = step.get("distance", 0)
+                                        instr = step.get("maneuver", {}).get("type", "continue")
+                                        passos.append(f"• {instr.upper()}: siga em **{nome}** por `{dist/1000:.1f} km`")
+                                    if passos:
+                                        for p in passos[:25]:
+                                            st.markdown(p)
+                                        if len(passos) > 25:
+                                            st.info(f"... e mais {len(passos)-25} instruções.")
+                                    else:
+                                        st.info("Nenhuma instrução detalhada disponível.")
+                                else:
+                                    st.info("Instruções não disponíveis.")
+                            except Exception as e:
+                                st.info(f"Instruções não disponíveis: {e}")
+
+                    # ---- AVIÃO ----
                     else:
-                        st.subheader("📊 RESUMO DA ROTA (CARRO)")
-                        c1, c2, c3 = st.columns(3)
-                        with c1:
-                            st.metric("📏 Distância", f"{distancia:.1f} km")
-                        with c2:
-                            horas = int(tempo // 60)
-                            mins = int(tempo % 60)
-                            st.metric("⏱️ Tempo Estimado", f"{horas}h {mins}min")
-                        with c3:
-                            st.metric("💰 Pedágio", "Consultar via app")
-
-                        # Combustível
-                        st.markdown("---")
-                        st.subheader("⛽ CUSTO ESTIMADO DE COMBUSTÍVEL")
-                        cc1, cc2 = st.columns(2)
-                        with cc1:
-                            preco_litro = st.number_input("Preço/Litro (R$)", min_value=0.0, value=5.89, step=0.01, format="%.2f", key="preco_carro")
-                        with cc2:
-                            consumo_km_l = st.number_input("Consumo (km/L)", min_value=0.1, value=10.0, step=0.1, format="%.1f", key="consumo_carro")
-                        if preco_litro > 0 and consumo_km_l > 0:
-                            litros = distancia / consumo_km_l
-                            custo_ida = litros * preco_litro
-                            custo_ida_volta = custo_ida * 2
-                            cb1, cb2 = st.columns(2)
-                            with cb1:
-                                st.metric("⛽ Ida", f"R$ {custo_ida:,.2f}")
-                            with cb2:
-                                st.metric("⛽ Ida + Volta", f"R$ {custo_ida_volta:,.2f}")
-                            st.info(f"💡 Litros necessários (ida): **{litros:.1f} L** | Preço/L: R$ {preco_litro:.2f} | Consumo: {consumo_km_l:.1f} km/L")
+                        distancia = haversine(lat1, lon1, lat2, lon2)
+                        tempo_voo_min = (distancia / 850) * 60  # 850 km/h média
+                        tempo_total_min = tempo_voo_min + 90   # +1h30 taxi
+                        st.subheader("📊 RESUMO DA ROTA (AVIÃO)")
+                        a1, a2, a3 = st.columns(3)
+                        with a1:
+                            st.metric("📏 Distância (linha reta)", f"{distancia:.1f} km")
+                        with a2:
+                            horas_v = int(tempo_total_min // 60)
+                            mins_v = int(tempo_total_min % 60)
+                            st.metric("⏱️ Tempo Estimado", f"{horas_v}h {mins_v}min")
+                        with a3:
+                            st.metric("✈️ Veloc. Média", "~850 km/h")
+                        st.info("💡 O tempo inclui aproximadamente 1h30 de taxi, decolagem e pouso.")
 
                         # PDF
                         st.markdown("---")
                         pdf_bytes = gerar_pdf_rota(
-                            tipo="Carro",
+                            tipo="Avião",
                             origem=origem_str,
                             destino=destino_str,
                             distancia=distancia,
-                            tempo_info=f"{horas}h {mins}min",
-                            custo_ida=custo_ida if (preco_litro > 0 and consumo_km_l > 0) else None,
-                            custo_volta=custo_ida_volta if (preco_litro > 0 and consumo_km_l > 0) else None,
-                            litros=litros if (preco_litro > 0 and consumo_km_l > 0) else None,
-                            preco_litro=preco_litro if (preco_litro > 0 and consumo_km_l > 0) else None,
-                            consumo=consumo_km_l if (preco_litro > 0 and consumo_km_l > 0) else None,
+                            tempo_info=f"{horas_v}h {mins_v}min",
                         )
                         if pdf_bytes:
                             st.download_button(
@@ -2190,20 +2351,19 @@ with aba9:
                         else:
                             st.warning("⚠️ Não foi possível gerar o PDF. Verifique se a biblioteca `reportlab` está instalada.")
 
-                        # Mapa com linha
+                        # Mapa com linha reta
                         st.markdown("---")
                         st.subheader("🗺️ Visualização da Rota")
                         try:
                             import pydeck as pdk
-                            coords = geometria["coordinates"]
-                            path_coords = coords  # já é [lon, lat]
+                            path_coords = [[lon1, lat1], [lon2, lat2]]
                             mid_lat = (lat1 + lat2) / 2
                             mid_lon = (lon1 + lon2) / 2
                             zoom_lvl = calcular_zoom(distancia)
 
                             path_layer = pdk.Layer(
                                 "PathLayer",
-                                data=[{"path": path_coords, "color": [255, 60, 0]}],
+                                data=[{"path": path_coords, "color": [0, 100, 255]}],
                                 get_path="path",
                                 get_color="color",
                                 width_scale=20,
@@ -2242,134 +2402,204 @@ with aba9:
                             st.pydeck_chart(pdk.Deck(
                                 layers=[path_layer, scatter_layer, text_layer],
                                 initial_view_state=view_state,
-                                tooltip={"text": "Rota de carro"},
+                                tooltip={"text": "Rota aérea (linha reta)"},
                                 height=800,
                             ))
-                            st.caption("🟢 Origem  |  🔴 Destino  |  🟠 Linha = rota por estrada")
+                            st.caption("🟢 Origem  |  🔴 Destino  |  🔵 Linha = trajeto aéreo aproximado")
                         except Exception as e:
                             st.warning(f"Não foi possível exibir o mapa: {e}")
 
-                        # Instruções passo a passo
-                        st.markdown("---")
-                        st.subheader("📝 Instruções de Rota (passo a passo)")
-                        try:
-                            url = f"http://router.project-osrm.org/route/v1/driving/{lon1},{lat1};{lon2},{lat2}"
-                            params = {"overview": "false", "steps": "true"}
-                            resp = requests.get(url, params=params, timeout=20)
-                            dados_inst = resp.json()
-                            if dados_inst.get("routes"):
-                                legs = dados_inst["routes"][0]["legs"][0]
-                                passos = []
-                                for step in legs.get("steps", []):
-                                    nome = step.get("name", "")
-                                    dist = step.get("distance", 0)
-                                    instr = step.get("maneuver", {}).get("type", "continue")
-                                    passos.append(f"• {instr.upper()}: siga em **{nome}** por `{dist/1000:.1f} km`")
-                                if passos:
-                                    for p in passos[:25]:
-                                        st.markdown(p)
-                                    if len(passos) > 25:
-                                        st.info(f"... e mais {len(passos)-25} instruções.")
-                                else:
-                                    st.info("Nenhuma instrução detalhada disponível.")
-                            else:
-                                st.info("Instruções não disponíveis.")
-                        except Exception as e:
-                            st.info(f"Instruções não disponíveis: {e}")
 
-                # ---- AVIÃO ----
-                else:
-                    distancia = haversine(lat1, lon1, lat2, lon2)
-                    tempo_voo_min = (distancia / 850) * 60  # 850 km/h média
-                    tempo_total_min = tempo_voo_min + 90   # +1h30 taxi
-                    st.subheader("📊 RESUMO DA ROTA (AVIÃO)")
-                    a1, a2, a3 = st.columns(3)
-                    with a1:
-                        st.metric("📏 Distância (linha reta)", f"{distancia:.1f} km")
-                    with a2:
-                        horas_v = int(tempo_total_min // 60)
-                        mins_v = int(tempo_total_min % 60)
-                        st.metric("⏱️ Tempo Estimado", f"{horas_v}h {mins_v}min")
-                    with a3:
-                        st.metric("✈️ Veloc. Média", "~850 km/h")
-                    st.info("💡 O tempo inclui aproximadamente 1h30 de taxi, decolagem e pouso.")
+    with sub_aba_viagens:
+        st.markdown("### 📝 REGISTRO DE VIAGENS")
 
-                    # PDF
-                    st.markdown("---")
-                    pdf_bytes = gerar_pdf_rota(
-                        tipo="Avião",
-                        origem=origem_str,
-                        destino=destino_str,
-                        distancia=distancia,
-                        tempo_info=f"{horas_v}h {mins_v}min",
-                    )
-                    if pdf_bytes:
-                        st.download_button(
-                            label="📄 BAIXAR RESUMO EM PDF",
-                            data=pdf_bytes,
-                            file_name=f"Resumo_Viagem_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
-                            mime="application/pdf"
-                        )
+        df_viagens = carregar_viagens()
+
+        # --- CADASTRO ---
+        with st.expander("➕ Cadastrar Nova Viagem", expanded=False):
+            with st.form("form_cadastro_viagem", clear_on_submit=True):
+                c1, c2, c3 = st.columns(3)
+                with c1:
+                    num_viagem = st.text_input("Número da Viagem *", key="cad_num_viagem")
+                    colaborador_v = st.text_input("Colaborador *", key="cad_colab_viagem")
+                    loja_v = st.selectbox("Loja", lista_lojas(), key="cad_loja_viagem")
+                with c2:
+                    origem_v = st.text_input("Origem", key="cad_origem_viagem")
+                    destino_v = st.text_input("Destino", key="cad_destino_viagem")
+                    motivo_v = st.text_input("Motivo", key="cad_motivo_viagem")
+                with c3:
+                    data_saida_v = st.text_input("Data Saída (DD/MM/AAAA)", key="cad_dt_saida_v")
+                    data_retorno_v = st.text_input("Data Retorno (DD/MM/AAAA)", key="cad_dt_retorno_v")
+                    valor_liberado_v = st.number_input("Valor Liberado (R$)", min_value=0.0, step=0.01, format="%.2f", key="cad_valor_lib_v")
+
+                observacoes_v = st.text_area("Observações / Prestação de Conta", key="cad_obs_viagem")
+
+                submitted_v = st.form_submit_button("💾 SALVAR VIAGEM", type="primary")
+                if submitted_v:
+                    if not num_viagem.strip() or not colaborador_v.strip():
+                        st.error("❌ Número da Viagem e Colaborador são obrigatórios!")
                     else:
-                        st.warning("⚠️ Não foi possível gerar o PDF. Verifique se a biblioteca `reportlab` está instalada.")
+                        df_v = carregar_viagens()
+                        nums_existentes = df_v["NUMERO_VIAGEM"].astype(str).str.strip()
+                        if num_viagem.strip() in nums_existentes.values:
+                            st.error("❌ Já existe uma viagem com este número!")
+                        else:
+                            novo_id = "1"
+                            if not df_v.empty:
+                                try:
+                                    ids_numericos = pd.to_numeric(df_v["ID"], errors="coerce").dropna()
+                                    if not ids_numericos.empty:
+                                        novo_id = str(int(ids_numericos.max()) + 1)
+                                except Exception:
+                                    pass
+                            nova_viagem = {
+                                "ID": novo_id,
+                                "NUMERO_VIAGEM": num_viagem.strip(),
+                                "COLABORADOR": colaborador_v.strip().upper(),
+                                "LOJA": loja_v,
+                                "ORIGEM": origem_v.strip().upper(),
+                                "DESTINO": destino_v.strip().upper(),
+                                "MOTIVO": motivo_v.strip().upper(),
+                                "DATA_SAIDA": data_saida_v.strip(),
+                                "DATA_RETORNO": data_retorno_v.strip(),
+                                "VALOR_LIBERADO": f"{float(valor_liberado_v):.2f}",
+                                "TOTAL_GASTO": "0.00",
+                                "RESTANTE": f"{float(valor_liberado_v):.2f}",
+                                "STATUS": "Planejada",
+                                "OBSERVACOES": observacoes_v.strip().upper(),
+                                "DATA_CADASTRO": datetime.now().strftime("%d/%m/%Y %H:%M")
+                            }
+                            df_v = pd.concat([df_v, pd.DataFrame([nova_viagem])], ignore_index=True)
+                            salvar_viagens(df_v)
+                            st.success("✅ Viagem cadastrada com sucesso!")
+                            time.sleep(0.5)
+                            st.rerun()
 
-                    # Mapa com linha reta
-                    st.markdown("---")
-                    st.subheader("🗺️ Visualização da Rota")
-                    try:
-                        import pydeck as pdk
-                        path_coords = [[lon1, lat1], [lon2, lat2]]
-                        mid_lat = (lat1 + lat2) / 2
-                        mid_lon = (lon1 + lon2) / 2
-                        zoom_lvl = calcular_zoom(distancia)
+        # --- FILTROS ---
+        st.markdown("---")
+        st.markdown("### 📋 HISTÓRICO DE VIAGENS")
 
-                        path_layer = pdk.Layer(
-                            "PathLayer",
-                            data=[{"path": path_coords, "color": [0, 100, 255]}],
-                            get_path="path",
-                            get_color="color",
-                            width_scale=20,
-                            width_min_pixels=4,
-                        )
-                        scatter_layer = pdk.Layer(
-                            "ScatterplotLayer",
-                            data=[
-                                {"position": [lon1, lat1], "color": [0, 200, 0]},
-                                {"position": [lon2, lat2], "color": [255, 0, 0]},
-                            ],
-                            get_position="position",
-                            get_color="color",
-                            get_radius=20000,
-                            radius_min_pixels=8,
-                            radius_max_pixels=25,
-                        )
-                        text_layer = pdk.Layer(
-                            "TextLayer",
-                            data=[
-                                {"position": [lon1, lat1], "text": cidade_origem, "color": [0, 200, 0]},
-                                {"position": [lon2, lat2], "text": cidade_destino, "color": [255, 0, 0]},
-                            ],
-                            get_position="position",
-                            get_text="text",
-                            get_color="color",
-                            get_size=18,
-                            get_text_anchor="middle",
-                            get_alignment_baseline="bottom",
-                            size_units="pixels",
-                        )
-                        view_state = pdk.ViewState(
-                            latitude=mid_lat, longitude=mid_lon,
-                            zoom=zoom_lvl, pitch=0
-                        )
-                        st.pydeck_chart(pdk.Deck(
-                            layers=[path_layer, scatter_layer, text_layer],
-                            initial_view_state=view_state,
-                            tooltip={"text": "Rota aérea (linha reta)"},
-                            height=800,
-                        ))
-                        st.caption("🟢 Origem  |  🔴 Destino  |  🔵 Linha = trajeto aéreo aproximado")
-                    except Exception as e:
-                        st.warning(f"Não foi possível exibir o mapa: {e}")
+        fv1, fv2, fv3, fv4 = st.columns(4)
+        with fv1:
+            f_num_v = st.text_input("🔍 Nº Viagem", key="filtro_num_viagem")
+        with fv2:
+            f_colab_v = st.text_input("🔍 Colaborador", key="filtro_colab_viagem")
+        with fv3:
+            f_loja_v = st.selectbox("Loja", ["Todas"] + lista_lojas(), key="filtro_loja_viagem")
+        with fv4:
+            f_status_v = st.selectbox("Status", ["Todos", "Planejada", "Em Andamento", "Concluída", "Cancelada"], key="filtro_status_viagem")
+
+        df_v_filt = df_viagens.copy()
+        if f_num_v.strip():
+            df_v_filt = df_v_filt[df_v_filt["NUMERO_VIAGEM"].astype(str).str.contains(f_num_v.strip(), case=False, na=False)]
+        if f_colab_v.strip():
+            df_v_filt = df_v_filt[busca_palavras(df_v_filt["COLABORADOR"], f_colab_v)]
+        if f_loja_v != "Todas":
+            df_v_filt = df_v_filt[df_v_filt["LOJA"] == f_loja_v]
+        if f_status_v != "Todos":
+            df_v_filt = df_v_filt[df_v_filt["STATUS"] == f_status_v]
+
+        st.markdown(f"**📊 Total: {len(df_v_filt)} viagem(ns) encontrada(s)**")
+
+        if df_v_filt.empty:
+            st.info("ℹ️ Nenhuma viagem encontrada com os filtros aplicados.")
+        else:
+            col_config_v = {
+                "ID": st.column_config.TextColumn("ID", disabled=True),
+                "NUMERO_VIAGEM": st.column_config.TextColumn("Nº VIAGEM", disabled=True),
+                "COLABORADOR": st.column_config.TextColumn("COLABORADOR"),
+                "LOJA": st.column_config.SelectboxColumn("LOJA", options=lista_lojas()),
+                "ORIGEM": st.column_config.TextColumn("ORIGEM"),
+                "DESTINO": st.column_config.TextColumn("DESTINO"),
+                "MOTIVO": st.column_config.TextColumn("MOTIVO"),
+                "DATA_SAIDA": st.column_config.TextColumn("DATA SAÍDA"),
+                "DATA_RETORNO": st.column_config.TextColumn("DATA RETORNO"),
+                "VALOR_LIBERADO": st.column_config.NumberColumn("VALOR LIBERADO (R$)", min_value=0.0, format="%.2f"),
+                "TOTAL_GASTO": st.column_config.NumberColumn("TOTAL GASTO (R$)", min_value=0.0, format="%.2f"),
+                "RESTANTE": st.column_config.NumberColumn("RESTANTE (R$)", disabled=True, format="%.2f"),
+                "STATUS": st.column_config.SelectboxColumn("STATUS", options=["Planejada", "Em Andamento", "Concluída", "Cancelada"]),
+                "OBSERVACOES": st.column_config.TextColumn("OBSERVAÇÕES / PRESTAÇÃO DE CONTA"),
+                "DATA_CADASTRO": st.column_config.TextColumn("DATA CADASTRO", disabled=True),
+            }
+
+            idx_original_v = df_v_filt.index.tolist()
+            df_v_editable = df_v_filt.reset_index(drop=True)
+
+            edited_v = st.data_editor(
+                df_v_editable,
+                column_config=col_config_v,
+                use_container_width=True,
+                hide_index=True,
+                num_rows="dynamic",
+                key="editor_viagens"
+            )
+
+            try:
+                edited_v["RESTANTE"] = (edited_v["VALOR_LIBERADO"].astype(float) - edited_v["TOTAL_GASTO"].astype(float)).apply(lambda x: f"{x:.2f}")
+            except Exception:
+                pass
+
+            try:
+                total_lib = edited_v["VALOR_LIBERADO"].astype(float).sum()
+                total_gasto = edited_v["TOTAL_GASTO"].astype(float).sum()
+                total_rest = edited_v["RESTANTE"].astype(float).sum()
+                r1, r2, r3 = st.columns(3)
+                with r1:
+                    st.metric("💰 Total Liberado", f"R$ {total_lib:,.2f}")
+                with r2:
+                    st.metric("💸 Total Gasto", f"R$ {total_gasto:,.2f}")
+                with r3:
+                    st.metric("📊 Total Restante", f"R$ {total_rest:,.2f}")
+            except Exception:
+                pass
+
+            col_sv, col_ev = st.columns([1, 1])
+            with col_sv:
+                if st.button("💾 SALVAR ALTERAÇÕES", type="primary", key="salvar_viagens_btn"):
+                    df_v_main = carregar_viagens()
+                    for i, idx_orig in enumerate(idx_original_v):
+                        if i < len(edited_v):
+                            for col in df_v_main.columns:
+                                if col in edited_v.columns:
+                                    df_v_main.at[idx_orig, col] = str(edited_v.iloc[i][col])
+                            try:
+                                vl = float(str(df_v_main.at[idx_orig, "VALOR_LIBERADO"]).replace(",", "."))
+                                tg = float(str(df_v_main.at[idx_orig, "TOTAL_GASTO"]).replace(",", "."))
+                                df_v_main.at[idx_orig, "RESTANTE"] = f"{vl - tg:.2f}"
+                            except Exception:
+                                pass
+                    if len(edited_v) > len(idx_original_v):
+                        for i in range(len(idx_original_v), len(edited_v)):
+                            nova_linha = {col: "" for col in df_v_main.columns}
+                            for col in edited_v.columns:
+                                nova_linha[col] = str(edited_v.iloc[i][col])
+                            novo_id = "1"
+                            if not df_v_main.empty:
+                                try:
+                                    ids_num = pd.to_numeric(df_v_main["ID"], errors="coerce").dropna()
+                                    if not ids_num.empty:
+                                        novo_id = str(int(ids_num.max()) + 1)
+                                except Exception:
+                                    pass
+                            nova_linha["ID"] = novo_id
+                            nova_linha["DATA_CADASTRO"] = datetime.now().strftime("%d/%m/%Y %H:%M")
+                            try:
+                                vl = float(str(nova_linha.get("VALOR_LIBERADO", "0")).replace(",", "."))
+                                tg = float(str(nova_linha.get("TOTAL_GASTO", "0")).replace(",", "."))
+                                nova_linha["RESTANTE"] = f"{vl - tg:.2f}"
+                            except Exception:
+                                nova_linha["RESTANTE"] = "0.00"
+                            df_v_main = pd.concat([df_v_main, pd.DataFrame([nova_linha])], ignore_index=True)
+                    if len(edited_v) < len(idx_original_v):
+                        remover = idx_original_v[len(edited_v):]
+                        df_v_main.drop(index=remover, inplace=True)
+                        df_v_main.reset_index(drop=True, inplace=True)
+                    salvar_viagens(df_v_main)
+                    st.success("✅ Alterações salvas com sucesso!")
+                    st.rerun()
+
+            with col_ev:
+                st.markdown("**🗑️ Para excluir:** delete as linhas na tabela (tecla Delete) e clique em SALVAR ALTERAÇÕES.")
 
 # ================ ABA 10 - BACKUP / RESTAURAÇÃO ================
 with aba10:
