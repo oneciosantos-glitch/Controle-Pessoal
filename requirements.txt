@@ -6,4 +6,7 @@ Pillow
 matplotlib
 requests
 gspread
+gTTS
+SpeechRecognition
+pydub
 reportlab
