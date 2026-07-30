@@ -3078,6 +3078,15 @@ with aba11:
                             st.stop()
                         with st.spinner("Gerando áudio..."):
                             cod_tts = st.session_state.get("stt_idioma_trad", "pt")
+                            # Garante que o código de idioma seja suportado pelo gTTS
+                            try:
+                                from gtts.lang import tts_langs
+                                suportados = tts_langs()
+                            except Exception:
+                                suportados = {}
+                            if not cod_tts or cod_tts not in suportados:
+                                cod_tts = "pt"
+                                st.info(f"ℹ️ Idioma não suportado para áudio. Usando Português.")
                             tts = gTTS(text=texto_ouvir, lang=cod_tts, slow=False)
                             mp3_buffer = io.BytesIO()
                             tts.write_to_fp(mp3_buffer)
