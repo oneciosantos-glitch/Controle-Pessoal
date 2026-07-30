@@ -3025,7 +3025,7 @@ with aba11:
                         # Armazenar no session_state
                         st.session_state["stt_texto_transcrito"] = texto_transcrito
                         st.session_state["stt_texto_traduzido"] = texto_traduzido
-                        st.session_state["stt_idioma_trad"] = cod_trad
+                        st.session_state["stt_cod_idioma_trad"] = cod_trad
                         st.rerun()
 
                     except sr.UnknownValueError:
@@ -3077,7 +3077,7 @@ with aba11:
                             st.error("❌ A biblioteca `gTTS` não está instalada. Execute: `pip install gtts`")
                             st.stop()
                         with st.spinner("Gerando áudio..."):
-                            cod_tts = st.session_state.get("stt_idioma_trad", "pt")
+                            cod_tts = st.session_state.get("stt_cod_idioma_trad", "pt")
                             # Garante que o código de idioma seja suportado pelo gTTS
                             try:
                                 from gtts.lang import tts_langs
@@ -3103,7 +3103,7 @@ with aba11:
 
             with col_btn2:
                 if st.button("🎙️ Regravar Áudio", use_container_width=True, key="stt_regravar"):
-                    for chave in ["stt_texto_transcrito", "stt_texto_traduzido", "stt_idioma_trad"]:
+                    for chave in ["stt_texto_transcrito", "stt_texto_traduzido", "stt_cod_idioma_trad"]:
                         if chave in st.session_state:
                             del st.session_state[chave]
                     st.rerun()
