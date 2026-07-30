@@ -2941,17 +2941,34 @@ with aba11:
                     mime="audio/mpeg",
                 )
 
-    # ---------- SUB-ABA 3: ÁUDIO → TEXTO (STT) ----------
+    # ---------- SUB-ABA 3: ÁUDIO → TEXTO (STT) + CORREÇÃO + TTS ----------
     with sub_aba_stt:
-        st.markdown("### 🎤 Áudio para Texto (STT)")
-        st.caption("Faça upload de um arquivo de áudio (.wav, .mp3, .ogg, .flac) para transcrever e traduzir.")
+        st.markdown("### 🎤 Fale, Transcreva, Traduza e Corrija")
+        st.caption("Grave áudio pelo microfone ou envie um arquivo. O sistema transcreve, traduz e permite correções por escrito ou por nova fala.")
 
-        arquivo_audio = st.file_uploader("📁 Selecione o arquivo de áudio", type=["wav", "mp3", "ogg", "flac"], key="stt_upload")
-        idioma_audio = st.selectbox("Idioma do Áudio", list(IDIOMAS.keys()), index=0, key="stt_idioma")
-        traduzir_apos = st.checkbox("🔄 Traduzir para Português após transcrever", value=True, key="stt_traduzir")
+        # --- Entrada de áudio: Microfone + Upload ---
+        col_mic, col_up = st.columns(2)
+        with col_mic:
+            st.markdown("**🎙️ Gravar pelo Microfone**")
+            audio_gravado = None
+            try:
+                audio_gravado = st.audio_input("Clique para gravar sua fala", key="stt_mic")
+            except Exception:
+                st.info("ℹ️ Para gravação direta pelo navegador, atualize o Streamlit para versão 1.37 ou superior.")
+        with col_up:
+            st.markdown("**📁 Ou envie um arquivo**")
+            arquivo_audio = st.file_uploader("Selecione .wav, .mp3, .ogg ou .flac", type=["wav", "mp3", "ogg", "flac"], key="stt_upload")
 
-        if arquivo_audio is not None:
-            if st.button("🎤 TRANSCREVER ÁUDIO", type="primary", use_container_width=True):
+        audio_final = audio_gravado if audio_gravado is not None else arquivo_audio
+
+        c1, c2 = st.columns(2)
+        with c1:
+            idioma_audio = st.selectbox("Idioma do Áudio", list(IDIOMAS.keys()), index=0, key="stt_idioma")
+        with c2:
+            idioma_trad = st.selectbox("Traduzir para", list(IDIOMAS.keys()), index=0, key="stt_idioma_trad")
+
+        if audio_final is not None:
+            if st.button("🎤 TRANSCREVER E TRADUZIR", type="primary", use_container_width=True):
                 try:
                     import speech_recognition as sr
                 except ImportError:
@@ -2959,13 +2976,20 @@ with aba11:
                     st.stop()
 
                 with st.spinner("Processando áudio..."):
-                    # Save uploaded file temporarily
-                    ext = os.path.splitext(arquivo_audio.name)[1].lower()
-                    tmp_path = f"/tmp/stt_audio_{datetime.now().strftime('%Y%m%d%H%M%S')}{ext}"
-                    with open(tmp_path, "wb") as f_audio:
-                        f_audio.write(arquivo_audio.getvalue())
+                    # Salvar áudio temporariamente
+                    if hasattr(audio_final, 'name'):
+                        ext = os.path.splitext(audio_final.name)[1].lower()
+                        tmp_path = f"/tmp/stt_audio_{datetime.now().strftime('%Y%m%d%H%M%S')}{ext}"
+                        with open(tmp_path, "wb") as f_audio:
+                            f_audio.write(audio_final.getvalue())
+                    else:
+                        # st.audio_input retorna bytes diretamente
+                        tmp_path = f"/tmp/stt_audio_{datetime.now().strftime('%Y%m%d%H%M%S')}.wav"
+                        with open(tmp_path, "wb") as f_audio:
+                            f_audio.write(audio_final.getvalue() if hasattr(audio_final, 'getvalue') else audio_final)
+                        ext = ".wav"
 
-                    # Convert mp3/ogg/flac to wav if needed
+                    # Converter para wav se necessário
                     wav_path = tmp_path
                     if ext != ".wav":
                         try:
@@ -2989,20 +3013,23 @@ with aba11:
                             audio_data = recognizer.record(source)
                         cod_stt = IDIOMAS.get(idioma_audio, "pt")
                         texto_transcrito = recognizer.recognize_google(audio_data, language=cod_stt)
-                        st.success("✅ Áudio transcrito com sucesso!")
-                        st.text_area("📝 Texto Transcrito", value=texto_transcrito, height=120, key="stt_resultado")
 
-                        if traduzir_apos and texto_transcrito.strip():
-                            with st.spinner("Traduzindo para Português..."):
-                                texto_traduzido = traduzir_texto(texto_transcrito, origem=cod_stt, destino="pt")
-                            if texto_traduzido:
-                                st.info("📋 Tradução para Português:")
-                                st.text_area("Tradução", value=texto_traduzido, height=120, key="stt_traducao")
-                            else:
-                                st.warning("⚠️ Não foi possível traduzir o texto transcrito.")
+                        # Traduzir automaticamente
+                        cod_trad = IDIOMAS.get(idioma_trad, "pt")
+                        texto_traduzido = ""
+                        if texto_transcrito.strip():
+                            texto_traduzido = traduzir_texto(texto_transcrito, origem=cod_stt, destino=cod_trad)
+                            if texto_traduzido is None:
+                                texto_traduzido = ""
+
+                        # Armazenar no session_state
+                        st.session_state["stt_texto_transcrito"] = texto_transcrito
+                        st.session_state["stt_texto_traduzido"] = texto_traduzido
+                        st.session_state["stt_idioma_trad"] = cod_trad
+                        st.rerun()
 
                     except sr.UnknownValueError:
-                        st.error("❌ Não foi possível entender o áudio. Verifique a qualidade do arquivo.")
+                        st.error("❌ Não foi possível entender o áudio. Verifique a qualidade do arquivo ou fale mais próximo do microfone.")
                     except sr.RequestError as e_req:
                         st.error(f"❌ Erro no serviço de reconhecimento: {e_req}")
                     except Exception as e_all:
@@ -3012,3 +3039,78 @@ with aba11:
                             os.remove(tmp_path)
                         if os.path.exists(wav_path) and wav_path != tmp_path:
                             os.remove(wav_path)
+
+        # --- SEÇÃO DE CORREÇÃO ---
+        if "stt_texto_transcrito" in st.session_state:
+            st.markdown("---")
+            st.markdown("### ✏️ Resultado e Correção")
+
+            col_res1, col_res2 = st.columns(2)
+            with col_res1:
+                st.markdown("**📝 Texto Original Transcrito**")
+                st.info(st.session_state.get("stt_texto_transcrito", ""))
+            with col_res2:
+                st.markdown("**📋 Tradução (editável)**")
+                texto_traducao_editado = st.text_area(
+                    "Edite a tradução se estiver incorreta",
+                    value=st.session_state.get("stt_texto_traduzido", ""),
+                    height=120,
+                    key="stt_traducao_edit",
+                    label_visibility="collapsed"
+                )
+
+            # Atualiza session_state com o texto editado
+            if texto_traducao_editado != st.session_state.get("stt_texto_traduzido", ""):
+                st.session_state["stt_texto_traduzido"] = texto_traducao_editado
+
+            col_btn1, col_btn2, col_btn3, col_btn4 = st.columns(4)
+
+            with col_btn1:
+                if st.button("🔊 Ouvir Tradução", use_container_width=True, key="stt_ouvir"):
+                    texto_ouvir = st.session_state.get("stt_texto_traduzido", "")
+                    if not texto_ouvir.strip():
+                        st.warning("⚠️ Nenhuma tradução para ouvir.")
+                    else:
+                        try:
+                            from gtts import gTTS
+                        except ImportError:
+                            st.error("❌ A biblioteca `gTTS` não está instalada. Execute: `pip install gtts`")
+                            st.stop()
+                        with st.spinner("Gerando áudio..."):
+                            cod_tts = st.session_state.get("stt_idioma_trad", "pt")
+                            tts = gTTS(text=texto_ouvir, lang=cod_tts, slow=False)
+                            mp3_buffer = io.BytesIO()
+                            tts.write_to_fp(mp3_buffer)
+                            mp3_buffer.seek(0)
+                        st.success("✅ Áudio gerado!")
+                        st.audio(mp3_buffer, format="audio/mp3")
+                        st.download_button(
+                            label="📥 Baixar Áudio",
+                            data=mp3_buffer.getvalue(),
+                            file_name=f"traducao_audio_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp3",
+                            mime="audio/mpeg",
+                            key="stt_download_audio"
+                        )
+
+            with col_btn2:
+                if st.button("🎙️ Regravar Áudio", use_container_width=True, key="stt_regravar"):
+                    for chave in ["stt_texto_transcrito", "stt_texto_traduzido", "stt_idioma_trad"]:
+                        if chave in st.session_state:
+                            del st.session_state[chave]
+                    st.rerun()
+
+            with col_btn3:
+                if st.button("💾 Salvar Correção", use_container_width=True, key="stt_salvar"):
+                    st.session_state["stt_texto_traduzido"] = texto_traducao_editado
+                    st.success("✅ Correção salva!")
+
+            with col_btn4:
+                if st.button("📥 Baixar Textos", use_container_width=True, key="stt_baixar"):
+                    texto_salvar = f"=== TEXTO ORIGINAL ===\n{st.session_state.get('stt_texto_transcrito', '')}\n\n=== TRADUÇÃO ===\n{st.session_state.get('stt_texto_traduzido', '')}"
+                    st.download_button(
+                        label="📥 Clique para baixar .txt",
+                        data=texto_salvar.encode("utf-8"),
+                        file_name=f"traducao_corrigida_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                        mime="text/plain",
+                        key="stt_download_txt"
+                    )
