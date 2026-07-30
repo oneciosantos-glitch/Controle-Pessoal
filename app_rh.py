@@ -866,8 +866,8 @@ if "afastamentos_verificado" not in st.session_state:
     st.session_state["afastamentos_verificado"] = True
 
 # ⚠️ LINHA OBRIGATÓRIA: CRIA TODAS AS ABAS ANTES DE USÁ-LAS
-aba1, aba2, aba3, aba4, aba5, aba6, aba7, aba8, aba9, aba10 = st.tabs([
-    "Cadastro", "Painel", "Prazos e Férias", "Histórico", "Relatórios", "📎 Documentos", "⚙️ Lojas e Cargos", "💰 CONTROLE DE DIÁRIAS", "🗺️ GUIA VIAGEM", "💾 Backup"
+aba1, aba2, aba3, aba4, aba5, aba6, aba7, aba8, aba9, aba10, aba11 = st.tabs([
+    "Cadastro", "Painel", "Prazos e Férias", "Histórico", "Relatórios", "📎 Documentos", "⚙️ Lojas e Cargos", "💰 CONTROLE DE DIÁRIAS", "🗺️ GUIA VIAGEM", "💾 Backup", "🌐 Tradutor"
 ])
 
 
@@ -2825,3 +2825,190 @@ with aba10:
 
     st.markdown("---")
     st.caption("Dica: Faça backup periodicamente ou sempre antes de atualizar o código no Streamlit Cloud.")
+
+
+# ================ ABA 11 - TRADUTOR ================
+
+@st.cache_data(show_spinner=False)
+def traduzir_texto(texto, origem="auto", destino="pt"):
+    """Traduz texto usando a API gratuita do Google Translate via requests."""
+    try:
+        url = "https://translate.googleapis.com/translate_a/single"
+        params = {
+            "client": "gtx",
+            "sl": origem,
+            "tl": destino,
+            "dt": "t",
+            "q": texto,
+        }
+        resp = requests.get(url, params=params, timeout=15)
+        resp.raise_for_status()
+        dados = resp.json()
+        if dados and isinstance(dados, list) and dados[0]:
+            partes = [p[0] for p in dados[0] if isinstance(p, list) and len(p) > 0]
+            return "".join(partes)
+    except Exception:
+        pass
+    return None
+
+
+IDIOMAS = {
+    "Português": "pt",
+    "Inglês": "en",
+    "Espanhol": "es",
+    "Francês": "fr",
+    "Alemão": "de",
+    "Italiano": "it",
+    "Chinês (Simplificado)": "zh-CN",
+    "Japonês": "ja",
+    "Coreano": "ko",
+    "Árabe": "ar",
+    "Russo": "ru",
+    "Holandês": "nl",
+    "Turco": "tr",
+    "Hindi": "hi",
+    "Polonês": "pl",
+}
+
+with aba11:
+    st.subheader("🌐 TRADUTOR MULTILÍNGUE")
+    st.info("Traduza textos, gere áudio a partir de textos e transcreva arquivos de áudio para texto.")
+
+    sub_aba_txt, sub_aba_tts, sub_aba_stt = st.tabs(["📝 Texto → Texto", "🔊 Texto → Áudio", "🎤 Áudio → Texto"])
+
+    # ---------- SUB-ABA 1: TEXTO → TEXTO ----------
+    with sub_aba_txt:
+        st.markdown("### 📝 Tradução de Texto")
+        c1, c2 = st.columns(2)
+        with c1:
+            idioma_origem = st.selectbox("Idioma de Origem", ["Auto-detectar"] + list(IDIOMAS.keys()), key="trad_origem")
+        with c2:
+            idioma_destino = st.selectbox("Idioma de Destino", list(IDIOMAS.keys()), index=1, key="trad_destino")
+
+        texto_origem = st.text_area("✍️ Digite o texto para traduzir", height=150, key="trad_texto_origem")
+
+        if st.button("🔄 TRADUZIR", type="primary", use_container_width=True):
+            if not texto_origem.strip():
+                st.warning("⚠️ Digite um texto para traduzir.")
+            else:
+                with st.spinner("Traduzindo..."):
+                    cod_origem = "auto" if idioma_origem == "Auto-detectar" else IDIOMAS.get(idioma_origem, "auto")
+                    cod_destino = IDIOMAS.get(idioma_destino, "pt")
+                    resultado = traduzir_texto(texto_origem, origem=cod_origem, destino=cod_destino)
+                if resultado:
+                    st.success("✅ Tradução concluída!")
+                    st.text_area("📋 Resultado da Tradução", value=resultado, height=150, key="trad_texto_resultado")
+                    st.download_button(
+                        label="📥 Baixar Tradução (.txt)",
+                        data=resultado.encode("utf-8"),
+                        file_name=f"traducao_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                        mime="text/plain",
+                    )
+                else:
+                    st.error("❌ Não foi possível traduzir. Verifique a conexão com a internet.")
+
+    # ---------- SUB-ABA 2: TEXTO → ÁUDIO (TTS) ----------
+    with sub_aba_tts:
+        st.markdown("### 🔊 Texto para Áudio (TTS)")
+        st.caption("Converta texto em fala e ouça ou baixe o áudio gerado.")
+
+        idioma_tts = st.selectbox("Idioma do Texto / Áudio", list(IDIOMAS.keys()), index=0, key="tts_idioma")
+        texto_tts = st.text_area("✍️ Digite o texto para converter em áudio", height=150, key="tts_texto")
+
+        if st.button("🔊 GERAR ÁUDIO", type="primary", use_container_width=True):
+            if not texto_tts.strip():
+                st.warning("⚠️ Digite um texto para converter.")
+            else:
+                try:
+                    from gtts import gTTS
+                except ImportError:
+                    st.error("❌ A biblioteca `gTTS` não está instalada. Execute: `pip install gtts`")
+                    st.stop()
+
+                with st.spinner("Gerando áudio..."):
+                    cod_tts = IDIOMAS.get(idioma_tts, "pt")
+                    tts = gTTS(text=texto_tts, lang=cod_tts, slow=False)
+                    mp3_buffer = io.BytesIO()
+                    tts.write_to_fp(mp3_buffer)
+                    mp3_buffer.seek(0)
+
+                st.success("✅ Áudio gerado com sucesso!")
+                st.audio(mp3_buffer, format="audio/mp3")
+                st.download_button(
+                    label="📥 Baixar Áudio (.mp3)",
+                    data=mp3_buffer.getvalue(),
+                    file_name=f"audio_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp3",
+                    mime="audio/mpeg",
+                )
+
+    # ---------- SUB-ABA 3: ÁUDIO → TEXTO (STT) ----------
+    with sub_aba_stt:
+        st.markdown("### 🎤 Áudio para Texto (STT)")
+        st.caption("Faça upload de um arquivo de áudio (.wav, .mp3, .ogg, .flac) para transcrever e traduzir.")
+
+        arquivo_audio = st.file_uploader("📁 Selecione o arquivo de áudio", type=["wav", "mp3", "ogg", "flac"], key="stt_upload")
+        idioma_audio = st.selectbox("Idioma do Áudio", list(IDIOMAS.keys()), index=0, key="stt_idioma")
+        traduzir_apos = st.checkbox("🔄 Traduzir para Português após transcrever", value=True, key="stt_traduzir")
+
+        if arquivo_audio is not None:
+            if st.button("🎤 TRANSCREVER ÁUDIO", type="primary", use_container_width=True):
+                try:
+                    import speech_recognition as sr
+                except ImportError:
+                    st.error("❌ A biblioteca `SpeechRecognition` não está instalada. Execute: `pip install SpeechRecognition`")
+                    st.stop()
+
+                with st.spinner("Processando áudio..."):
+                    # Save uploaded file temporarily
+                    ext = os.path.splitext(arquivo_audio.name)[1].lower()
+                    tmp_path = f"/tmp/stt_audio_{datetime.now().strftime('%Y%m%d%H%M%S')}{ext}"
+                    with open(tmp_path, "wb") as f_audio:
+                        f_audio.write(arquivo_audio.getvalue())
+
+                    # Convert mp3/ogg/flac to wav if needed
+                    wav_path = tmp_path
+                    if ext != ".wav":
+                        try:
+                            from pydub import AudioSegment
+                            wav_path = tmp_path.replace(ext, ".wav")
+                            audio_seg = AudioSegment.from_file(tmp_path, format=ext.replace(".", ""))
+                            audio_seg.export(wav_path, format="wav")
+                        except ImportError:
+                            st.error("❌ Para arquivos MP3/OGG/FLAC é necessário instalar: `pip install pydub` (e ter ffmpeg instalado no sistema).")
+                            os.remove(tmp_path)
+                            st.stop()
+                        except Exception as e_conv:
+                            st.error(f"❌ Erro ao converter áudio: {e_conv}")
+                            if os.path.exists(tmp_path):
+                                os.remove(tmp_path)
+                            st.stop()
+
+                    recognizer = sr.Recognizer()
+                    try:
+                        with sr.AudioFile(wav_path) as source:
+                            audio_data = recognizer.record(source)
+                        cod_stt = IDIOMAS.get(idioma_audio, "pt")
+                        texto_transcrito = recognizer.recognize_google(audio_data, language=cod_stt)
+                        st.success("✅ Áudio transcrito com sucesso!")
+                        st.text_area("📝 Texto Transcrito", value=texto_transcrito, height=120, key="stt_resultado")
+
+                        if traduzir_apos and texto_transcrito.strip():
+                            with st.spinner("Traduzindo para Português..."):
+                                texto_traduzido = traduzir_texto(texto_transcrito, origem=cod_stt, destino="pt")
+                            if texto_traduzido:
+                                st.info("📋 Tradução para Português:")
+                                st.text_area("Tradução", value=texto_traduzido, height=120, key="stt_traducao")
+                            else:
+                                st.warning("⚠️ Não foi possível traduzir o texto transcrito.")
+
+                    except sr.UnknownValueError:
+                        st.error("❌ Não foi possível entender o áudio. Verifique a qualidade do arquivo.")
+                    except sr.RequestError as e_req:
+                        st.error(f"❌ Erro no serviço de reconhecimento: {e_req}")
+                    except Exception as e_all:
+                        st.error(f"❌ Erro ao processar áudio: {e_all}")
+                    finally:
+                        if os.path.exists(tmp_path):
+                            os.remove(tmp_path)
+                        if os.path.exists(wav_path) and wav_path != tmp_path:
+                            os.remove(wav_path)
