@@ -412,7 +412,15 @@ def exportar_diarias_formatado(df, caminho):
     """Exporta DataFrame de diárias para Excel com a mesma formatação da planilha padrão."""
     df_export = df.copy()
     df_export.to_excel(caminho, index=False, engine="openpyxl")
-    wb = load_workbook(caminho)
+    try:
+        wb = load_workbook(caminho)
+    except Exception:
+        wb = Workbook()
+        ws = wb.active
+        ws.append(list(df_export.columns))
+        for _, row in df_export.iterrows():
+            ws.append(list(row))
+        wb.save(caminho)
     ws = wb.active
     ws.title = "Diarias"
 
