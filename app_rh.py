@@ -2979,6 +2979,14 @@ with aba11:
         st.markdown("### 🎤 Fale, Transcreva, Traduza e Corrija")
         st.caption("Grave áudio pelo microfone ou envie um arquivo. O sistema transcreve, traduz e permite correções por escrito ou por nova fala.")
 
+        # --- Inicializa histórico ---
+        if "stt_historico" not in st.session_state:
+            st.session_state["stt_historico"] = []
+        if "stt_ultimo_audio_bytes" not in st.session_state:
+            st.session_state["stt_ultimo_audio_bytes"] = None
+        if "stt_ultimo_audio_ext" not in st.session_state:
+            st.session_state["stt_ultimo_audio_ext"] = ".wav"
+
         # --- Entrada de áudio: Microfone + Upload ---
         col_mic, col_up = st.columns(2)
         with col_mic:
@@ -2994,14 +3002,32 @@ with aba11:
 
         audio_final = audio_gravado if audio_gravado is not None else arquivo_audio
 
+        # Salva bytes do áudio no session_state para reutilização
+        if audio_final is not None:
+            if hasattr(audio_final, 'name'):
+                st.session_state["stt_ultimo_audio_bytes"] = audio_final.getvalue()
+                st.session_state["stt_ultimo_audio_ext"] = os.path.splitext(audio_final.name)[1].lower()
+            else:
+                st.session_state["stt_ultimo_audio_bytes"] = audio_final.getvalue() if hasattr(audio_final, 'getvalue') else audio_final
+                st.session_state["stt_ultimo_audio_ext"] = ".wav"
+
         c1, c2 = st.columns(2)
         with c1:
             idioma_audio = st.selectbox("Idioma do Áudio", list(IDIOMAS.keys()), index=0, key="stt_idioma")
         with c2:
             idioma_trad = st.selectbox("Traduzir para", list(IDIOMAS.keys()), index=0, key="stt_idioma_trad")
 
-        if audio_final is not None:
-            if st.button("🎤 TRANSCREVER E TRADUZIR", type="primary", use_container_width=True):
+        col_proc, col_trad = st.columns(2)
+        with col_proc:
+            processar_audio = st.button("🎤 TRANSCREVER E TRADUZIR", type="primary", use_container_width=True, key="stt_btn_processar")
+        with col_trad:
+            traduzir_novamente = st.button("🔄 TRADUZIR ÚLTIMO ÁUDIO P/ OUTRO IDIOMA", type="secondary", use_container_width=True, key="stt_btn_retraduzir")
+
+        # --- AÇÃO: TRANSCREVER E TRADUZIR ---
+        if processar_audio:
+            if st.session_state["stt_ultimo_audio_bytes"] is None:
+                st.warning("⚠️ Grave ou envie um áudio primeiro.")
+            else:
                 try:
                     import speech_recognition as sr
                 except ImportError:
@@ -3009,18 +3035,11 @@ with aba11:
                     st.stop()
 
                 with st.spinner("Processando áudio..."):
-                    # Salvar áudio temporariamente
-                    if hasattr(audio_final, 'name'):
-                        ext = os.path.splitext(audio_final.name)[1].lower()
-                        tmp_path = f"/tmp/stt_audio_{datetime.now().strftime('%Y%m%d%H%M%S')}{ext}"
-                        with open(tmp_path, "wb") as f_audio:
-                            f_audio.write(audio_final.getvalue())
-                    else:
-                        # st.audio_input retorna bytes diretamente
-                        tmp_path = f"/tmp/stt_audio_{datetime.now().strftime('%Y%m%d%H%M%S')}.wav"
-                        with open(tmp_path, "wb") as f_audio:
-                            f_audio.write(audio_final.getvalue() if hasattr(audio_final, 'getvalue') else audio_final)
-                        ext = ".wav"
+                    audio_bytes = st.session_state["stt_ultimo_audio_bytes"]
+                    ext = st.session_state["stt_ultimo_audio_ext"]
+                    tmp_path = f"/tmp/stt_audio_{datetime.now().strftime('%Y%m%d%H%M%S')}{ext}"
+                    with open(tmp_path, "wb") as f_audio:
+                        f_audio.write(audio_bytes)
 
                     # Converter para wav se necessário
                     wav_path = tmp_path
@@ -3055,11 +3074,22 @@ with aba11:
                             if texto_traduzido is None:
                                 texto_traduzido = ""
 
-                        # Armazenar no session_state
-                        st.session_state["stt_texto_transcrito"] = texto_transcrito
-                        st.session_state["stt_texto_traduzido"] = texto_traduzido
-                        st.session_state["stt_cod_idioma_trad"] = cod_trad
-                        st.rerun()
+                        # Guarda transcrição atual para re-traduzir depois
+                        st.session_state["stt_texto_transcrito_atual"] = texto_transcrito
+                        st.session_state["stt_cod_idioma_audio_atual"] = cod_stt
+
+                        # Adiciona ao histórico
+                        st.session_state["stt_historico"].append({
+                            "id": len(st.session_state["stt_historico"]),
+                            "timestamp": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+                            "idioma_audio": idioma_audio,
+                            "cod_audio": cod_stt,
+                            "idioma_trad": idioma_trad,
+                            "cod_trad": cod_trad,
+                            "texto_transcrito": texto_transcrito,
+                            "texto_traduzido": texto_traduzido,
+                        })
+                        st.success("✅ Áudio transcrito e traduzido com sucesso!")
 
                     except sr.UnknownValueError:
                         st.error("❌ Não foi possível entender o áudio. Verifique a qualidade do arquivo ou fale mais próximo do microfone.")
@@ -3073,86 +3103,111 @@ with aba11:
                         if os.path.exists(wav_path) and wav_path != tmp_path:
                             os.remove(wav_path)
 
-        # --- SEÇÃO DE CORREÇÃO ---
-        if "stt_texto_transcrito" in st.session_state:
+        # --- AÇÃO: TRADUZIR ÚLTIMO ÁUDIO PARA OUTRO IDIOMA ---
+        if traduzir_novamente:
+            if "stt_texto_transcrito_atual" not in st.session_state or not st.session_state["stt_texto_transcrito_atual"]:
+                st.warning("⚠️ Transcreva um áudio primeiro.")
+            else:
+                cod_stt = st.session_state.get("stt_cod_idioma_audio_atual", "pt")
+                cod_trad = IDIOMAS.get(idioma_trad, "pt")
+                texto_transcrito = st.session_state["stt_texto_transcrito_atual"]
+                with st.spinner("Traduzindo..."):
+                    texto_traduzido = traduzir_texto(texto_transcrito, origem=cod_stt, destino=cod_trad)
+                    if texto_traduzido is None:
+                        texto_traduzido = ""
+                st.session_state["stt_historico"].append({
+                    "id": len(st.session_state["stt_historico"]),
+                    "timestamp": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+                    "idioma_audio": idioma_audio,
+                    "cod_audio": cod_stt,
+                    "idioma_trad": idioma_trad,
+                    "cod_trad": cod_trad,
+                    "texto_transcrito": texto_transcrito,
+                    "texto_traduzido": texto_traduzido,
+                })
+                st.success("✅ Nova tradução adicionada ao histórico!")
+
+        # --- SEÇÃO DE HISTÓRICO E CORREÇÃO ---
+        if st.session_state["stt_historico"]:
             st.markdown("---")
-            st.markdown("### ✏️ Resultado e Correção")
+            st.markdown("### 📚 Histórico de Transcrições e Traduções")
 
-            col_res1, col_res2 = st.columns(2)
-            with col_res1:
-                st.markdown("**📝 Texto Original Transcrito**")
-                st.info(st.session_state.get("stt_texto_transcrito", ""))
-            with col_res2:
-                st.markdown("**📋 Tradução (editável)**")
-                texto_traducao_editado = st.text_area(
-                    "Edite a tradução se estiver incorreta",
-                    value=st.session_state.get("stt_texto_traduzido", ""),
-                    height=120,
-                    key="stt_traducao_edit",
-                    label_visibility="collapsed"
-                )
+            for item in reversed(st.session_state["stt_historico"]):
+                idx = item["id"]
+                with st.container(border=True):
+                    st.caption(f"🕐 {item['timestamp']} | Áudio: {item['idioma_audio']} → Tradução: {item['idioma_trad']}")
 
-            # Atualiza session_state com o texto editado
-            if texto_traducao_editado != st.session_state.get("stt_texto_traduzido", ""):
-                st.session_state["stt_texto_traduzido"] = texto_traducao_editado
+                    col_res1, col_res2 = st.columns(2)
+                    with col_res1:
+                        st.markdown("**📝 Texto Original Transcrito**")
+                        st.info(item["texto_transcrito"])
+                    with col_res2:
+                        st.markdown("**📋 Tradução (editável)**")
+                        # Usa chave única baseada no ID para evitar conflito de widgets
+                        chave_edit = f"stt_edit_{idx}"
+                        texto_editado = st.text_area(
+                            "Edite a tradução",
+                            value=item["texto_traduzido"],
+                            height=100,
+                            key=chave_edit,
+                            label_visibility="collapsed"
+                        )
+                        # Atualiza o histórico se o usuário editou
+                        if texto_editado != item["texto_traduzido"]:
+                            item["texto_traduzido"] = texto_editado
 
-            col_btn1, col_btn2, col_btn3, col_btn4 = st.columns(4)
-
-            with col_btn1:
-                if st.button("🔊 Ouvir Tradução", use_container_width=True, key="stt_ouvir"):
-                    texto_ouvir = st.session_state.get("stt_texto_traduzido", "")
-                    if not texto_ouvir.strip():
-                        st.warning("⚠️ Nenhuma tradução para ouvir.")
-                    else:
-                        try:
-                            from gtts import gTTS
-                        except ImportError:
-                            st.error("❌ A biblioteca `gTTS` não está instalada. Execute: `pip install gtts`")
-                            st.stop()
-                        with st.spinner("Gerando áudio..."):
-                            cod_tts = st.session_state.get("stt_cod_idioma_trad", "pt")
-                            # Garante que o código de idioma seja suportado pelo gTTS
-                            try:
-                                from gtts.lang import tts_langs
-                                suportados = tts_langs()
-                            except Exception:
-                                suportados = {}
-                            if not cod_tts or cod_tts not in suportados:
-                                cod_tts = "pt"
-                                st.info(f"ℹ️ Idioma não suportado para áudio. Usando Português.")
-                            tts = gTTS(text=texto_ouvir, lang=cod_tts, slow=False)
-                            mp3_buffer = io.BytesIO()
-                            tts.write_to_fp(mp3_buffer)
-                            mp3_buffer.seek(0)
-                        st.success("✅ Áudio gerado!")
-                        st.audio(mp3_buffer, format="audio/mp3")
+                    col_b1, col_b2, col_b3 = st.columns(3)
+                    with col_b1:
+                        if st.button("🔊 Ouvir Tradução", use_container_width=True, key=f"stt_ouvir_{idx}"):
+                            texto_ouvir = item["texto_traduzido"]
+                            if not texto_ouvir.strip():
+                                st.warning("⚠️ Nenhuma tradução para ouvir.")
+                            else:
+                                try:
+                                    from gtts import gTTS
+                                except ImportError:
+                                    st.error("❌ A biblioteca `gTTS` não está instalada. Execute: `pip install gtts`")
+                                    st.stop()
+                                with st.spinner("Gerando áudio..."):
+                                    cod_tts = item["cod_trad"]
+                                    try:
+                                        from gtts.lang import tts_langs
+                                        suportados = tts_langs()
+                                    except Exception:
+                                        suportados = {}
+                                    if not cod_tts or cod_tts not in suportados:
+                                        cod_tts = "pt"
+                                        st.info("ℹ️ Idioma não suportado para áudio. Usando Português.")
+                                    tts = gTTS(text=texto_ouvir, lang=cod_tts, slow=False)
+                                    mp3_buffer = io.BytesIO()
+                                    tts.write_to_fp(mp3_buffer)
+                                    mp3_buffer.seek(0)
+                                st.success("✅ Áudio gerado!")
+                                st.audio(mp3_buffer, format="audio/mp3")
+                                st.download_button(
+                                    label="📥 Baixar Áudio",
+                                    data=mp3_buffer.getvalue(),
+                                    file_name=f"traducao_audio_{item['timestamp'].replace('/', '').replace(' ', '_').replace(':', '')}.mp3",
+                                    mime="audio/mpeg",
+                                    key=f"stt_down_audio_{idx}"
+                                )
+                    with col_b2:
+                        if st.button("💾 Salvar Correção", use_container_width=True, key=f"stt_salvar_{idx}"):
+                            item["texto_traduzido"] = texto_editado
+                            st.success("✅ Correção salva!")
+                    with col_b3:
+                        texto_baixar = f"=== TEXTO ORIGINAL ===\n{item['texto_transcrito']}\n\n=== TRADUÇÃO ===\n{item['texto_traduzido']}"
                         st.download_button(
-                            label="📥 Baixar Áudio",
-                            data=mp3_buffer.getvalue(),
-                            file_name=f"traducao_audio_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp3",
-                            mime="audio/mpeg",
-                            key="stt_download_audio"
+                            label="📥 Baixar Textos",
+                            data=texto_baixar.encode("utf-8"),
+                            file_name=f"traducao_{item['timestamp'].replace('/', '').replace(' ', '_').replace(':', '')}.txt",
+                            mime="text/plain",
+                            key=f"stt_down_txt_{idx}"
                         )
 
-            with col_btn2:
-                if st.button("🎙️ Regravar Áudio", use_container_width=True, key="stt_regravar"):
-                    for chave in ["stt_texto_transcrito", "stt_texto_traduzido", "stt_cod_idioma_trad"]:
-                        if chave in st.session_state:
-                            del st.session_state[chave]
-                    st.rerun()
-
-            with col_btn3:
-                if st.button("💾 Salvar Correção", use_container_width=True, key="stt_salvar"):
-                    st.session_state["stt_texto_traduzido"] = texto_traducao_editado
-                    st.success("✅ Correção salva!")
-
-            with col_btn4:
-                if st.button("📥 Baixar Textos", use_container_width=True, key="stt_baixar"):
-                    texto_salvar = f"=== TEXTO ORIGINAL ===\n{st.session_state.get('stt_texto_transcrito', '')}\n\n=== TRADUÇÃO ===\n{st.session_state.get('stt_texto_traduzido', '')}"
-                    st.download_button(
-                        label="📥 Clique para baixar .txt",
-                        data=texto_salvar.encode("utf-8"),
-                        file_name=f"traducao_corrigida_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
-                        mime="text/plain",
-                        key="stt_download_txt"
-                    )
+            if st.button("🗑️ Limpar Todo o Histórico STT", key="stt_limpar_hist"):
+                st.session_state["stt_historico"] = []
+                st.session_state["stt_texto_transcrito_atual"] = ""
+                st.session_state["stt_cod_idioma_audio_atual"] = "pt"
+                st.session_state["stt_ultimo_audio_bytes"] = None
+                st.rerun()
