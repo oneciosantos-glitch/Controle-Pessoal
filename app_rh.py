@@ -2837,7 +2837,6 @@ with aba10:
 
 # ================ ABA 11 - TRADUTOR ================
 
-@st.cache_data(show_spinner=False)
 def traduzir_texto(texto, origem="auto", destino="pt"):
     """Traduz texto usando a API gratuita do Google Translate via requests."""
     try:
@@ -2905,15 +2904,41 @@ with aba11:
                     resultado = traduzir_texto(texto_origem, origem=cod_origem, destino=cod_destino)
                 if resultado:
                     st.success("✅ Tradução concluída!")
-                    st.text_area("📋 Resultado da Tradução", value=resultado, height=150, key="trad_texto_resultado")
-                    st.download_button(
-                        label="📥 Baixar Tradução (.txt)",
-                        data=resultado.encode("utf-8"),
-                        file_name=f"traducao_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
-                        mime="text/plain",
-                    )
+                    if "traducoes_historico" not in st.session_state:
+                        st.session_state["traducoes_historico"] = []
+                    st.session_state["traducoes_historico"].append({
+                        "timestamp": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+                        "origem": idioma_origem,
+                        "destino": idioma_destino,
+                        "texto_original": texto_origem,
+                        "texto_traduzido": resultado,
+                    })
                 else:
                     st.error("❌ Não foi possível traduzir. Verifique a conexão com a internet.")
+
+        # Exibe histórico de traduções acumuladas
+        if "traducoes_historico" in st.session_state and st.session_state["traducoes_historico"]:
+            st.markdown("---")
+            st.markdown("### 📚 Histórico de Traduções")
+            for i, item in enumerate(reversed(st.session_state["traducoes_historico"])):
+                idx_real = len(st.session_state["traducoes_historico"]) - 1 - i
+                with st.container(border=True):
+                    st.caption(f"🕐 {item['timestamp']} | {item['origem']} → {item['destino']}")
+                    c_orig, c_dest = st.columns(2)
+                    with c_orig:
+                        st.text_area("Texto Original", value=item["texto_original"], height=100, key=f"trad_hist_orig_{idx_real}", disabled=True)
+                    with c_dest:
+                        st.text_area("Tradução", value=item["texto_traduzido"], height=100, key=f"trad_hist_dest_{idx_real}", disabled=True)
+                    st.download_button(
+                        label="📥 Baixar esta tradução (.txt)",
+                        data=item["texto_traduzido"].encode("utf-8"),
+                        file_name=f"traducao_{item['timestamp'].replace('/', '').replace(' ', '_').replace(':', '')}.txt",
+                        mime="text/plain",
+                        key=f"trad_hist_down_{idx_real}",
+                    )
+            if st.button("🗑️ Limpar Histórico de Traduções", key="trad_limpar_hist"):
+                st.session_state["traducoes_historico"] = []
+                st.rerun()
 
     # ---------- SUB-ABA 2: TEXTO → ÁUDIO (TTS) ----------
     with sub_aba_tts:
