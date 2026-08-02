@@ -412,7 +412,15 @@ def exportar_diarias_formatado(df, caminho):
     """Exporta DataFrame de diárias para Excel com a mesma formatação da planilha padrão."""
     df_export = df.copy()
     df_export.to_excel(caminho, index=False, engine="openpyxl")
-    wb = load_workbook(caminho)
+    try:
+        wb = load_workbook(caminho)
+    except Exception:
+        wb = Workbook()
+        ws = wb.active
+        ws.append(list(df_export.columns))
+        for _, row in df_export.iterrows():
+            ws.append(list(row))
+        wb.save(caminho)
     ws = wb.active
     ws.title = "Diarias"
 
@@ -866,8 +874,8 @@ if "afastamentos_verificado" not in st.session_state:
     st.session_state["afastamentos_verificado"] = True
 
 # ⚠️ LINHA OBRIGATÓRIA: CRIA TODAS AS ABAS ANTES DE USÁ-LAS
-aba1, aba2, aba3, aba4, aba5, aba6, aba7, aba8, aba9, aba10 = st.tabs([
-    "Cadastro", "Painel", "Prazos e Férias", "Histórico", "Relatórios", "📎 Documentos", "⚙️ Lojas e Cargos", "💰 CONTROLE DE DIÁRIAS", "🗺️ GUIA VIAGEM", "💾 Backup"
+aba1, aba2, aba3, aba4, aba5, aba6, aba7, aba8, aba9, aba10, aba11 = st.tabs([
+    "Cadastro", "Painel", "Prazos e Férias", "Histórico", "Relatórios", "📎 Documentos", "⚙️ Lojas e Cargos", "💰 CONTROLE DE DIÁRIAS", "🗺️ GUIA VIAGEM", "💾 Backup", "🌐 Tradutor"
 ])
 
 
@@ -2601,6 +2609,175 @@ with aba9:
             with col_ev:
                 st.markdown("**🗑️ Para excluir:** delete as linhas na tabela (tecla Delete) e clique em SALVAR ALTERAÇÕES.")
 
+
+        # --- RESUMO, GRÁFICOS E EXPORTAÇÃO ---
+        st.markdown("---")
+        st.markdown("### 📊 RESUMO E ANÁLISE DE VIAGENS")
+
+        if df_viagens.empty:
+            st.info("ℹ️ Nenhuma viagem registrada para gerar resumos e gráficos.")
+        else:
+            try:
+                df_v_num = df_viagens.copy()
+                for col in ["VALOR_LIBERADO", "TOTAL_GASTO", "RESTANTE"]:
+                    df_v_num[col] = pd.to_numeric(df_v_num[col].astype(str).str.replace(",", "."), errors="coerce").fillna(0)
+
+                total_viagens = len(df_v_num)
+                total_liberado = df_v_num["VALOR_LIBERADO"].sum()
+                total_gasto = df_v_num["TOTAL_GASTO"].sum()
+                total_restante = df_v_num["RESTANTE"].sum()
+                media_gasto = df_v_num["TOTAL_GASTO"].mean()
+
+                r1, r2, r3, r4, r5 = st.columns(5)
+                with r1:
+                    st.metric("🧳 Viagens", f"{total_viagens}")
+                with r2:
+                    st.metric("💰 Liberado", f"R$ {total_liberado:,.2f}")
+                with r3:
+                    st.metric("💸 Gasto", f"R$ {total_gasto:,.2f}")
+                with r4:
+                    st.metric("📊 Restante", f"R$ {total_restante:,.2f}")
+                with r5:
+                    st.metric("📈 Média Gasto", f"R$ {media_gasto:,.2f}")
+
+                st.markdown("---")
+                st.markdown("#### 📈 Gráficos")
+
+                g1, g2 = st.columns(2)
+                with g1:
+                    status_counts = df_v_num["STATUS"].value_counts()
+                    if not status_counts.empty:
+                        fig1, ax1 = plt.subplots(figsize=(4.5, 3.5))
+                        colors = {"Planejada": "#3498db", "Em Andamento": "#f1c40f", "Concluída": "#2ecc71", "Cancelada": "#e74c3c"}
+                        pie_colors = [colors.get(s, "#95a5a6") for s in status_counts.index]
+                        ax1.pie(status_counts.values, labels=status_counts.index, autopct="%1.1f%%", colors=pie_colors, startangle=90)
+                        ax1.set_title("Distribuição por Status", fontsize=10, fontweight="bold")
+                        plt.tight_layout()
+                        st.pyplot(fig1)
+                        plt.close(fig1)
+
+                with g2:
+                    top_colab = df_v_num.groupby("COLABORADOR")["TOTAL_GASTO"].sum().sort_values(ascending=True).tail(10)
+                    if not top_colab.empty:
+                        fig2, ax2 = plt.subplots(figsize=(4.5, 3.5))
+                        top_colab.plot(kind="barh", ax=ax2, color="#2ecc71")
+                        ax2.set_title("Top 10 Colaboradores - Total Gasto", fontsize=10, fontweight="bold")
+                        ax2.set_xlabel("R$", fontsize=8)
+                        plt.tight_layout()
+                        st.pyplot(fig2)
+                        plt.close(fig2)
+
+                g3, g4 = st.columns(2)
+                with g3:
+                    loja_gasto = df_v_num.groupby("LOJA")["TOTAL_GASTO"].sum().sort_values(ascending=False).head(10)
+                    if not loja_gasto.empty:
+                        fig3, ax3 = plt.subplots(figsize=(4.5, 3.5))
+                        loja_gasto.plot(kind="bar", ax=ax3, color="#3498db")
+                        ax3.set_title("Top 10 Lojas - Total Gasto", fontsize=10, fontweight="bold")
+                        ax3.set_ylabel("R$", fontsize=8)
+                        ax3.tick_params(axis="x", rotation=45, labelsize=7)
+                        plt.tight_layout()
+                        st.pyplot(fig3)
+                        plt.close(fig3)
+
+                with g4:
+                    try:
+                        df_v_num["MES"] = pd.to_datetime(df_v_num["DATA_CADASTRO"], format="%d/%m/%Y %H:%M", errors="coerce").dt.to_period("M").astype(str)
+                        mes_counts = df_v_num["MES"].value_counts().sort_index().tail(12)
+                        if not mes_counts.empty:
+                            fig4, ax4 = plt.subplots(figsize=(4.5, 3.5))
+                            mes_counts.plot(kind="line", ax=ax4, marker="o", color="#e74c3c")
+                            ax4.set_title("Viagens por Mês (últimos 12)", fontsize=10, fontweight="bold")
+                            ax4.set_ylabel("Quantidade", fontsize=8)
+                            ax4.tick_params(axis="x", rotation=45, labelsize=7)
+                            plt.tight_layout()
+                            st.pyplot(fig4)
+                            plt.close(fig4)
+                    except Exception:
+                        pass
+
+                st.markdown("---")
+                st.markdown("#### 📥 EXPORTAR DADOS")
+                e1, e2 = st.columns(2)
+                with e1:
+                    excel_buffer = io.BytesIO()
+                    with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
+                        df_v_num.to_excel(writer, sheet_name="Viagens", index=False)
+                    st.download_button(
+                        label="📊 EXPORTAR EXCEL",
+                        data=excel_buffer.getvalue(),
+                        file_name=f"Resumo_Viagens_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        use_container_width=True,
+                    )
+                with e2:
+                    try:
+                        from reportlab.lib.pagesizes import letter
+                        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+                        from reportlab.lib.styles import getSampleStyleSheet
+                        from reportlab.lib import colors
+
+                        pdf_buffer = io.BytesIO()
+                        doc = SimpleDocTemplate(pdf_buffer, pagesize=letter)
+                        elements = []
+                        styles = getSampleStyleSheet()
+                        elements.append(Paragraph("<b>RESUMO DE VIAGENS</b>", styles["Title"]))
+                        elements.append(Paragraph(f"Gerado em: {datetime.now().strftime('%d/%m/%Y %H:%M')}", styles["Normal"]))
+                        elements.append(Spacer(1, 12))
+
+                        # Resumo em tabela
+                        resumo_data = [
+                            ["Total de Viagens", str(total_viagens)],
+                            ["Total Liberado", f"R$ {total_liberado:,.2f}"],
+                            ["Total Gasto", f"R$ {total_gasto:,.2f}"],
+                            ["Total Restante", f"R$ {total_restante:,.2f}"],
+                            ["Média de Gasto", f"R$ {media_gasto:,.2f}"],
+                        ]
+                        t_resumo = Table(resumo_data, colWidths=[200, 200])
+                        t_resumo.setStyle(TableStyle([
+                            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#3498db")),
+                            ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+                            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                            ("FONTSIZE", (0, 0), (-1, 0), 10),
+                            ("BOTTOMPADDING", (0, 0), (-1, 0), 8),
+                            ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#ecf0f1")),
+                            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                        ]))
+                        elements.append(t_resumo)
+                        elements.append(Spacer(1, 20))
+
+                        # Tabela de viagens (top 30)
+                        top_df = df_v_num.sort_values("TOTAL_GASTO", ascending=False).head(30)
+                        top_df = top_df[["NUMERO_VIAGEM", "COLABORADOR", "LOJA", "DESTINO", "VALOR_LIBERADO", "TOTAL_GASTO", "RESTANTE", "STATUS"]]
+                        top_df = top_df.fillna("")
+                        table_data = [top_df.columns.tolist()] + top_df.values.tolist()
+                        t_viagens = Table(table_data, repeatRows=1)
+                        t_viagens.setStyle(TableStyle([
+                            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2c3e50")),
+                            ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+                            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                            ("FONTSIZE", (0, 0), (-1, 0), 9),
+                            ("BOTTOMPADDING", (0, 0), (-1, 0), 6),
+                            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                            ("FONTSIZE", (0, 1), (-1, -1), 8),
+                        ]))
+                        elements.append(t_viagens)
+                        doc.build(elements)
+                        st.download_button(
+                            label="📄 EXPORTAR PDF RESUMO",
+                            data=pdf_buffer.getvalue(),
+                            file_name=f"Resumo_Viagens_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+                            mime="application/pdf",
+                            use_container_width=True,
+                        )
+                    except Exception as e_pdf:
+                        st.error(f"Erro ao gerar PDF: {e_pdf}")
+
+            except Exception as e:
+                st.error(f"Erro ao gerar resumos: {e}")
+
 # ================ ABA 10 - BACKUP / RESTAURAÇÃO ================
 with aba10:
     st.subheader("💾 BACKUP E RESTAURAÇÃO")
@@ -2656,3 +2833,301 @@ with aba10:
 
     st.markdown("---")
     st.caption("Dica: Faça backup periodicamente ou sempre antes de atualizar o código no Streamlit Cloud.")
+
+
+# ================ ABA 11 - TRADUTOR ================
+
+@st.cache_data(show_spinner=False)
+def traduzir_texto(texto, origem="auto", destino="pt"):
+    """Traduz texto usando a API gratuita do Google Translate via requests."""
+    try:
+        url = "https://translate.googleapis.com/translate_a/single"
+        params = {
+            "client": "gtx",
+            "sl": origem,
+            "tl": destino,
+            "dt": "t",
+            "q": texto,
+        }
+        resp = requests.get(url, params=params, timeout=15)
+        resp.raise_for_status()
+        dados = resp.json()
+        if dados and isinstance(dados, list) and dados[0]:
+            partes = [p[0] for p in dados[0] if isinstance(p, list) and len(p) > 0]
+            return "".join(partes)
+    except Exception:
+        pass
+    return None
+
+
+IDIOMAS = {
+    "Português": "pt",
+    "Inglês": "en",
+    "Espanhol": "es",
+    "Francês": "fr",
+    "Alemão": "de",
+    "Italiano": "it",
+    "Chinês (Simplificado)": "zh-CN",
+    "Japonês": "ja",
+    "Coreano": "ko",
+    "Árabe": "ar",
+    "Russo": "ru",
+    "Holandês": "nl",
+    "Turco": "tr",
+    "Hindi": "hi",
+    "Polonês": "pl",
+}
+
+with aba11:
+    st.subheader("🌐 TRADUTOR MULTILÍNGUE")
+    st.info("Traduza textos, gere áudio a partir de textos e transcreva arquivos de áudio para texto.")
+
+    sub_aba_txt, sub_aba_tts, sub_aba_stt = st.tabs(["📝 Texto → Texto", "🔊 Texto → Áudio", "🎤 Áudio → Texto"])
+
+    # ---------- SUB-ABA 1: TEXTO → TEXTO ----------
+    with sub_aba_txt:
+        st.markdown("### 📝 Tradução de Texto")
+        c1, c2 = st.columns(2)
+        with c1:
+            idioma_origem = st.selectbox("Idioma de Origem", ["Auto-detectar"] + list(IDIOMAS.keys()), key="trad_origem")
+        with c2:
+            idioma_destino = st.selectbox("Idioma de Destino", list(IDIOMAS.keys()), index=1, key="trad_destino")
+
+        texto_origem = st.text_area("✍️ Digite o texto para traduzir", height=150, key="trad_texto_origem")
+
+        if st.button("🔄 TRADUZIR", type="primary", use_container_width=True):
+            if not texto_origem.strip():
+                st.warning("⚠️ Digite um texto para traduzir.")
+            else:
+                with st.spinner("Traduzindo..."):
+                    cod_origem = "auto" if idioma_origem == "Auto-detectar" else IDIOMAS.get(idioma_origem, "auto")
+                    cod_destino = IDIOMAS.get(idioma_destino, "pt")
+                    resultado = traduzir_texto(texto_origem, origem=cod_origem, destino=cod_destino)
+                if resultado:
+                    st.success("✅ Tradução concluída!")
+                    st.text_area("📋 Resultado da Tradução", value=resultado, height=150, key="trad_texto_resultado")
+                    st.download_button(
+                        label="📥 Baixar Tradução (.txt)",
+                        data=resultado.encode("utf-8"),
+                        file_name=f"traducao_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                        mime="text/plain",
+                    )
+                else:
+                    st.error("❌ Não foi possível traduzir. Verifique a conexão com a internet.")
+
+    # ---------- SUB-ABA 2: TEXTO → ÁUDIO (TTS) ----------
+    with sub_aba_tts:
+        st.markdown("### 🔊 Texto para Áudio (TTS)")
+        st.caption("Converta texto em fala e ouça ou baixe o áudio gerado.")
+
+        idioma_tts = st.selectbox("Idioma do Texto / Áudio", list(IDIOMAS.keys()), index=0, key="tts_idioma")
+        texto_tts = st.text_area("✍️ Digite o texto para converter em áudio", height=150, key="tts_texto")
+
+        if st.button("🔊 GERAR ÁUDIO", type="primary", use_container_width=True):
+            if not texto_tts.strip():
+                st.warning("⚠️ Digite um texto para converter.")
+            else:
+                try:
+                    from gtts import gTTS
+                except ImportError:
+                    st.error("❌ A biblioteca `gTTS` não está instalada. Execute: `pip install gtts`")
+                    st.stop()
+
+                with st.spinner("Gerando áudio..."):
+                    cod_tts = IDIOMAS.get(idioma_tts, "pt")
+                    tts = gTTS(text=texto_tts, lang=cod_tts, slow=False)
+                    mp3_buffer = io.BytesIO()
+                    tts.write_to_fp(mp3_buffer)
+                    mp3_buffer.seek(0)
+
+                st.success("✅ Áudio gerado com sucesso!")
+                st.audio(mp3_buffer, format="audio/mp3")
+                st.download_button(
+                    label="📥 Baixar Áudio (.mp3)",
+                    data=mp3_buffer.getvalue(),
+                    file_name=f"audio_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp3",
+                    mime="audio/mpeg",
+                )
+
+    # ---------- SUB-ABA 3: ÁUDIO → TEXTO (STT) + CORREÇÃO + TTS ----------
+    with sub_aba_stt:
+        st.markdown("### 🎤 Fale, Transcreva, Traduza e Corrija")
+        st.caption("Grave áudio pelo microfone ou envie um arquivo. O sistema transcreve, traduz e permite correções por escrito ou por nova fala.")
+
+        # --- Entrada de áudio: Microfone + Upload ---
+        col_mic, col_up = st.columns(2)
+        with col_mic:
+            st.markdown("**🎙️ Gravar pelo Microfone**")
+            audio_gravado = None
+            try:
+                audio_gravado = st.audio_input("Clique para gravar sua fala", key="stt_mic")
+            except Exception:
+                st.info("ℹ️ Para gravação direta pelo navegador, atualize o Streamlit para versão 1.37 ou superior.")
+        with col_up:
+            st.markdown("**📁 Ou envie um arquivo**")
+            arquivo_audio = st.file_uploader("Selecione .wav, .mp3, .ogg ou .flac", type=["wav", "mp3", "ogg", "flac"], key="stt_upload")
+
+        audio_final = audio_gravado if audio_gravado is not None else arquivo_audio
+
+        c1, c2 = st.columns(2)
+        with c1:
+            idioma_audio = st.selectbox("Idioma do Áudio", list(IDIOMAS.keys()), index=0, key="stt_idioma")
+        with c2:
+            idioma_trad = st.selectbox("Traduzir para", list(IDIOMAS.keys()), index=0, key="stt_idioma_trad")
+
+        if audio_final is not None:
+            if st.button("🎤 TRANSCREVER E TRADUZIR", type="primary", use_container_width=True):
+                try:
+                    import speech_recognition as sr
+                except ImportError:
+                    st.error("❌ A biblioteca `SpeechRecognition` não está instalada. Execute: `pip install SpeechRecognition`")
+                    st.stop()
+
+                with st.spinner("Processando áudio..."):
+                    # Salvar áudio temporariamente
+                    if hasattr(audio_final, 'name'):
+                        ext = os.path.splitext(audio_final.name)[1].lower()
+                        tmp_path = f"/tmp/stt_audio_{datetime.now().strftime('%Y%m%d%H%M%S')}{ext}"
+                        with open(tmp_path, "wb") as f_audio:
+                            f_audio.write(audio_final.getvalue())
+                    else:
+                        # st.audio_input retorna bytes diretamente
+                        tmp_path = f"/tmp/stt_audio_{datetime.now().strftime('%Y%m%d%H%M%S')}.wav"
+                        with open(tmp_path, "wb") as f_audio:
+                            f_audio.write(audio_final.getvalue() if hasattr(audio_final, 'getvalue') else audio_final)
+                        ext = ".wav"
+
+                    # Converter para wav se necessário
+                    wav_path = tmp_path
+                    if ext != ".wav":
+                        try:
+                            from pydub import AudioSegment
+                            wav_path = tmp_path.replace(ext, ".wav")
+                            audio_seg = AudioSegment.from_file(tmp_path, format=ext.replace(".", ""))
+                            audio_seg.export(wav_path, format="wav")
+                        except ImportError:
+                            st.error("❌ Para arquivos MP3/OGG/FLAC é necessário instalar: `pip install pydub` (e ter ffmpeg instalado no sistema).")
+                            os.remove(tmp_path)
+                            st.stop()
+                        except Exception as e_conv:
+                            st.error(f"❌ Erro ao converter áudio: {e_conv}")
+                            if os.path.exists(tmp_path):
+                                os.remove(tmp_path)
+                            st.stop()
+
+                    recognizer = sr.Recognizer()
+                    try:
+                        with sr.AudioFile(wav_path) as source:
+                            audio_data = recognizer.record(source)
+                        cod_stt = IDIOMAS.get(idioma_audio, "pt")
+                        texto_transcrito = recognizer.recognize_google(audio_data, language=cod_stt)
+
+                        # Traduzir automaticamente
+                        cod_trad = IDIOMAS.get(idioma_trad, "pt")
+                        texto_traduzido = ""
+                        if texto_transcrito.strip():
+                            texto_traduzido = traduzir_texto(texto_transcrito, origem=cod_stt, destino=cod_trad)
+                            if texto_traduzido is None:
+                                texto_traduzido = ""
+
+                        # Armazenar no session_state
+                        st.session_state["stt_texto_transcrito"] = texto_transcrito
+                        st.session_state["stt_texto_traduzido"] = texto_traduzido
+                        st.session_state["stt_cod_idioma_trad"] = cod_trad
+                        st.rerun()
+
+                    except sr.UnknownValueError:
+                        st.error("❌ Não foi possível entender o áudio. Verifique a qualidade do arquivo ou fale mais próximo do microfone.")
+                    except sr.RequestError as e_req:
+                        st.error(f"❌ Erro no serviço de reconhecimento: {e_req}")
+                    except Exception as e_all:
+                        st.error(f"❌ Erro ao processar áudio: {e_all}")
+                    finally:
+                        if os.path.exists(tmp_path):
+                            os.remove(tmp_path)
+                        if os.path.exists(wav_path) and wav_path != tmp_path:
+                            os.remove(wav_path)
+
+        # --- SEÇÃO DE CORREÇÃO ---
+        if "stt_texto_transcrito" in st.session_state:
+            st.markdown("---")
+            st.markdown("### ✏️ Resultado e Correção")
+
+            col_res1, col_res2 = st.columns(2)
+            with col_res1:
+                st.markdown("**📝 Texto Original Transcrito**")
+                st.info(st.session_state.get("stt_texto_transcrito", ""))
+            with col_res2:
+                st.markdown("**📋 Tradução (editável)**")
+                texto_traducao_editado = st.text_area(
+                    "Edite a tradução se estiver incorreta",
+                    value=st.session_state.get("stt_texto_traduzido", ""),
+                    height=120,
+                    key="stt_traducao_edit",
+                    label_visibility="collapsed"
+                )
+
+            # Atualiza session_state com o texto editado
+            if texto_traducao_editado != st.session_state.get("stt_texto_traduzido", ""):
+                st.session_state["stt_texto_traduzido"] = texto_traducao_editado
+
+            col_btn1, col_btn2, col_btn3, col_btn4 = st.columns(4)
+
+            with col_btn1:
+                if st.button("🔊 Ouvir Tradução", use_container_width=True, key="stt_ouvir"):
+                    texto_ouvir = st.session_state.get("stt_texto_traduzido", "")
+                    if not texto_ouvir.strip():
+                        st.warning("⚠️ Nenhuma tradução para ouvir.")
+                    else:
+                        try:
+                            from gtts import gTTS
+                        except ImportError:
+                            st.error("❌ A biblioteca `gTTS` não está instalada. Execute: `pip install gtts`")
+                            st.stop()
+                        with st.spinner("Gerando áudio..."):
+                            cod_tts = st.session_state.get("stt_cod_idioma_trad", "pt")
+                            # Garante que o código de idioma seja suportado pelo gTTS
+                            try:
+                                from gtts.lang import tts_langs
+                                suportados = tts_langs()
+                            except Exception:
+                                suportados = {}
+                            if not cod_tts or cod_tts not in suportados:
+                                cod_tts = "pt"
+                                st.info(f"ℹ️ Idioma não suportado para áudio. Usando Português.")
+                            tts = gTTS(text=texto_ouvir, lang=cod_tts, slow=False)
+                            mp3_buffer = io.BytesIO()
+                            tts.write_to_fp(mp3_buffer)
+                            mp3_buffer.seek(0)
+                        st.success("✅ Áudio gerado!")
+                        st.audio(mp3_buffer, format="audio/mp3")
+                        st.download_button(
+                            label="📥 Baixar Áudio",
+                            data=mp3_buffer.getvalue(),
+                            file_name=f"traducao_audio_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp3",
+                            mime="audio/mpeg",
+                            key="stt_download_audio"
+                        )
+
+            with col_btn2:
+                if st.button("🎙️ Regravar Áudio", use_container_width=True, key="stt_regravar"):
+                    for chave in ["stt_texto_transcrito", "stt_texto_traduzido", "stt_cod_idioma_trad"]:
+                        if chave in st.session_state:
+                            del st.session_state[chave]
+                    st.rerun()
+
+            with col_btn3:
+                if st.button("💾 Salvar Correção", use_container_width=True, key="stt_salvar"):
+                    st.session_state["stt_texto_traduzido"] = texto_traducao_editado
+                    st.success("✅ Correção salva!")
+
+            with col_btn4:
+                if st.button("📥 Baixar Textos", use_container_width=True, key="stt_baixar"):
+                    texto_salvar = f"=== TEXTO ORIGINAL ===\n{st.session_state.get('stt_texto_transcrito', '')}\n\n=== TRADUÇÃO ===\n{st.session_state.get('stt_texto_traduzido', '')}"
+                    st.download_button(
+                        label="📥 Clique para baixar .txt",
+                        data=texto_salvar.encode("utf-8"),
+                        file_name=f"traducao_corrigida_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                        mime="text/plain",
+                        key="stt_download_txt"
+                    )
