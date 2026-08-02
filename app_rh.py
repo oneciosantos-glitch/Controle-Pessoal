@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 try:
     import matplotlib.pyplot as plt
     MATPLOT = True
@@ -46,14 +47,30 @@ except Exception:
 ARQUIVO = "dados_funcionarios.xlsx"
 ARQUIVO_DIARIAS = "controle_diarias.xlsx"
 ARQUIVO_VIAGENS = "registro_viagens.xlsx"
+ARQUIVO_COMPRAS = "dados_compras.xlsx"
 PASTA_DOCS = "Documentos_Lojas"
 PASTA_DOCS_FUNC = "Documentos_Funcionarios"
 PASTA_FOTOS = "Fotos_Funcionarios"
 PASTA_COMPROVANTES = "Comprovantes_Diarias"
+PASTA_ANEXOS_COMPRAS = "Anexos_Compras"
 os.makedirs(PASTA_DOCS, exist_ok=True)
 os.makedirs(PASTA_DOCS_FUNC, exist_ok=True)
 os.makedirs(PASTA_FOTOS, exist_ok=True)
 os.makedirs(PASTA_COMPROVANTES, exist_ok=True)
+os.makedirs(PASTA_ANEXOS_COMPRAS, exist_ok=True)
+
+# ====================== GOOGLE TRANSLATE WIDGET ======================
+st.components.v1.html("""
+<div id="google_translate_element" style="position:fixed;top:10px;right:10px;z-index:9999;"></div>
+<script type="text/javascript">
+function googleTranslateElementInit() {
+  new google.translate.TranslateElement({pageLanguage: 'pt', includedLanguages: 'pt,en,es,fr,it,de,ja,zh-CN', layout: google.translate.TranslateElement.InlineLayout.SIMPLE}, 'google_translate_element');
+}
+</script>
+<script type="text/javascript" src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
+""", height=60)
+
+
 
 MESES = ["Todos", "jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"]
 
@@ -412,15 +429,7 @@ def exportar_diarias_formatado(df, caminho):
     """Exporta DataFrame de diárias para Excel com a mesma formatação da planilha padrão."""
     df_export = df.copy()
     df_export.to_excel(caminho, index=False, engine="openpyxl")
-    try:
-        wb = load_workbook(caminho)
-    except Exception:
-        wb = Workbook()
-        ws = wb.active
-        ws.append(list(df_export.columns))
-        for _, row in df_export.iterrows():
-            ws.append(list(row))
-        wb.save(caminho)
+    wb = load_workbook(caminho)
     ws = wb.active
     ws.title = "Diarias"
 
@@ -552,6 +561,254 @@ def salvar_viagens(df_viagens):
     except Exception:
         pass
     st.cache_data.clear()
+
+# ====================== CONFIGURAÇÕES COMPRAS E ENTREGAS ======================
+ARQUIVO_COMPRAS = "dados_compras.xlsx"
+PASTA_ANEXOS_COMPRAS = "Anexos_Compras"
+os.makedirs(PASTA_ANEXOS_COMPRAS, exist_ok=True)
+
+TIPOS_SOLICITACAO = ["Material", "EPI"]
+STATUS_SOLICITACAO = ["Pendente", "Aprovado", "Em Trânsito", "Entregue", "Cancelado"]
+PRIORIDADES_SOLICITACAO = ["Normal", "Urgente", "Crítica"]
+STATUS_ENTREGA = ["Pendente", "Enviado", "Em Trânsito", "Entregue", "Devolvido"]
+
+
+# ====================== DADOS COMPRAS / ENTREGAS (HARDCODED) ======================
+CLIENTES_COMPRAS = ["Smart Fit", "Self Fit", "Assaí Atacadista"]
+
+LOJAS_POR_CLIENTE = {
+    "Smart Fit": [
+        "Smart Fit Shopping Manoa", "Smart Fit Shopping Cidade Leste", "Smart Fit Macapá Shopping",
+        "Smart Fit Shopping Grande Circular", "Smart Fit Shopping Via Norte", "Smart Fit Cidade Nova",
+        "Smart Fit Parque Mosaico", "Smart Fit Cachoeirinha", "Smart Fit Flores", "Smart Fit Ponta Negra",
+        "Smart Fit Nova Porto Velho", "Smart Fit Porto Velho Flodoaldo", "Smart Fit Alvorada",
+        "Smart Fit Novo Aleixo", "Smart Fit São José do Operário", "Smart Fit Santana Macapá",
+        "Smart Fit Toequato Tapajós"
+    ],
+    "Self Fit": [
+        "Self Fit Hiper DB Ponta Negra", "Self Fit Manaus Plaza Shopping", "Self Fit Vieira Alves"
+    ],
+    "Assaí Atacadista": [
+        "Assaí Atacadista Batista Campos", "Assaí Atacadista Almirante Barroso", "Assaí Atacadista Castanhal",
+        "Assaí Atacadista Ananindeua", "Assaí Atacadista Augusto Monte Negro", "Assaí Atacadista Boa Vista",
+        "Assaí Atacadista Manaus", "Assaí Atacadista Macapá", "Assaí Atacadista Belém"
+    ]
+}
+
+MATERIAIS_POR_CLIENTE = {
+    "Smart Fit": [
+        "ÁGUA SANITÁRIA", "ASPIRADOR SEMI-INDUSTRIAL 23L", "BALDE 15L", "BALDE 6L",
+        "BALDE ESPREMEDOR COMPLETO", "CABO DE ALUMINIO SEM ROSCA", "DISCO VERMELHO 510",
+        "ENCERADEIRA INDUSTRIAL", "ESCOVA DE MÃO", "ESCOVA SANITÁRIA", "ESPONJA DUPLA FACE",
+        "EXTENSÃO DE 30 M", "FIBRAS DE LIMPEZA PESADA", "FLANELAS", "KIT LIMPA VIDRO 2 EM 1 BRALIMPIA",
+        "LIMPA TUDO (MINI LOK)", "PÁ DE LIXO COMPLETA", "PANO DE CHÃO ALVEJADO", "PLACAS SINALIZADORA",
+        "REFIL MOP ÁGUA", "RODO DE 60cm COMPLETO", "SABÃO EM PÓ", "SACO DE LIXO 100 L",
+        "SACO DE LIXO 40 L", "SACO DE LIXO 60 L", "VASSOURA DE NYLON COMPLETA", "VASSOURA DE TETO COMPLETA"
+    ],
+    "Self Fit": [
+        "ASPIRADOR DE PÓ E BATERIA SEM FIO", "BAUDE EXPREMEDOR", "REFIL MOP ÁGUA", "REFIL MOP PÓ",
+        "PLACAS SINALIZADORA", "ENCERADEIRA INDUSTRIAL", "KIT LIMPA VIDRO 2 EM 1 BRALIMPIA",
+        "PÁ COLETORA DE LIXO", "PULVERIZADOR", "CESTA MULTIUSO"
+    ],
+    "Assaí Atacadista": [
+        "Disco 510 mm - Preto", "Disco 510 mm - Marron para Remoção", "Disco 510 mm - vermelho",
+        "Disco 510 mm - Verde", "Disco pelo de porco para Polidora", "Disco champanhe para Polidora",
+        "Starlock frange 510mm aço", "Starlock frange 510mm com Velcon", "Starlock frange 510mm escova",
+        "Enceradeira industrial 510", "Armação Mop Pó 60 cm", "Armação Mop Pó 1,20 cm", "Refil mop cera",
+        "Suporte mop cera", "Lt", "Esponja p/LT", "Rodo madeira 1,20mts", "Rodo 60 cm",
+        "Cabeleira Mop Agua", "Mop Pó 60 cm", "Mop Pó 1,20 cm", "Saco Amarelo P/Carrinho",
+        "Pa coletora azul pop", "Raspador pesado sem cabo", "Raspador pesado com cabo", "Garra mop Agua",
+        "Carro coletor de lixo 240lts", "Cabo de aluminio com rosca", "Cabo de aluminio sem rosca",
+        "Lâminas p/ raspdor", "Raspador de mão", "Extenção cabo PP 3x2,5", "Borracha Organizadora Carrinho Funcional",
+        "Carrinho funcional kit completo", "Balde expremedor", "Kit manunteção para carrinho", "Vassoura nylon",
+        "Vassoura Piassava", "Vassourão gari 60 cm", "Alongador 9mts", "Regador"
+    ]
+}
+
+EPIS_POR_CLIENTE = {
+    "Smart Fit": [
+        "Luva látex", "Óculos de proteção", "Luva de Vinil", "Máscara de Proteção",
+        "Protetor auricular plug", "Protetor tipo concha", "Luva para jardineiro",
+        "Avental de raspa", "Viseira", "Perneira", "Meia Térmica", "Japonha Térmica",
+        "Calça Térmica", "Luvas térmicas"
+    ],
+    "Self Fit": [
+        "Luva látex", "Óculos de proteção", "Luva de Vinil", "Máscara de Proteção",
+        "Protetor auricular plug", "Protetor tipo concha"
+    ],
+    "Assaí Atacadista": [
+        "Luva látex", "Óculos de proteção", "Luva de Vinil", "Máscara de Proteção",
+        "Protetor auricular plug", "Protetor tipo concha", "Luva para jardineiro",
+        "Avental de raspa", "Viseira", "Perneira", "Meia Térmica", "Japonha Térmica",
+        "Calça Térmica", "Luvas térmicas"
+    ]
+}
+
+# ====================== FUNÇÕES COMPRAS E ENTREGAS ======================
+@st.cache_data(ttl=0, show_spinner=False)
+def carregar_compras():
+    cols_solic = ["ID","Data","Cliente","Loja","Tipo","Solicitante","Prioridade","Status","Previsao","Observacoes","ValorTotal","ItensJSON","Anexos"]
+    cols_entrega = ["ID_Solicitacao","Loja","Tipo","DataEnvio","DataPrevista","DataEntrega","Transportadora","Rastreio","Status","Observacoes"]
+    cols_material = ["ID","Nome","Cliente","Categoria"]
+    cols_loja_c = ["ID","Nome","Cliente"]
+    cols_cliente_c = ["Nome"]
+    
+    try:
+        dados_c = pd.read_excel(ARQUIVO_COMPRAS, sheet_name=None, dtype=str, keep_default_na=False)
+    except:
+        dados_c = {}
+    
+    for aba, cols in {
+        "Solicitacoes": cols_solic,
+        "Entregas": cols_entrega,
+        "Materiais": cols_material,
+        "Lojas_Compras": cols_loja_c,
+        "Clientes_Compras": cols_cliente_c
+    }.items():
+        if aba not in dados_c:
+            dados_c[aba] = pd.DataFrame(columns=cols)
+        else:
+            for c in cols:
+                if c not in dados_c[aba].columns:
+                    dados_c[aba][c] = ""
+            if "ID" in dados_c[aba].columns:
+                dados_c[aba]["ID"] = dados_c[aba]["ID"].astype(str).str.strip()
+    
+    # Se o Excel está vazio (primeira execução), inicializa com dados hardcoded
+    if dados_c.get("Clientes_Compras", pd.DataFrame()).empty:
+        dados_c["Clientes_Compras"] = pd.DataFrame({"Nome": CLIENTES_COMPRAS})
+    
+    if dados_c.get("Lojas_Compras", pd.DataFrame()).empty:
+        rows_lojas = []
+        for cliente, lojas in LOJAS_POR_CLIENTE.items():
+            for nome in lojas:
+                rows_lojas.append({"ID": f"LJC-{len(rows_lojas)+1:03d}", "Nome": nome, "Cliente": cliente})
+        dados_c["Lojas_Compras"] = pd.DataFrame(rows_lojas, columns=cols_loja_c)
+    
+    if dados_c.get("Materiais", pd.DataFrame()).empty:
+        rows_mats = []
+        for cliente, mats in MATERIAIS_POR_CLIENTE.items():
+            for nome in mats:
+                rows_mats.append({"ID": f"MAT-{len(rows_mats)+1:03d}", "Nome": nome, "Cliente": cliente, "Categoria": "Material"})
+        dados_c["Materiais"] = pd.DataFrame(rows_mats, columns=cols_material)
+    
+    return dados_c
+
+def salvar_compras(dados_c):
+    try:
+        with pd.ExcelWriter(ARQUIVO_COMPRAS, engine="openpyxl", mode="w") as f:
+            for aba, df in dados_c.items():
+                df.to_excel(f, sheet_name=aba, index=False)
+    except Exception:
+        pass
+    st.cache_data.clear()
+
+def gerar_id_solicitacao(df):
+    if df.empty:
+        return "SOL-001"
+    try:
+        nums = df["ID"].astype(str).str.replace("SOL-", "", regex=False)
+        nums = pd.to_numeric(nums, errors="coerce").dropna()
+        if not nums.empty:
+            return f"SOL-{int(nums.max()) + 1:03d}"
+    except Exception:
+        pass
+    return f"SOL-{len(df) + 1:03d}"
+
+def gerar_id_material(df):
+    if df.empty:
+        return "MAT-001"
+    try:
+        nums = df["ID"].astype(str).str.replace("MAT-", "", regex=False)
+        nums = pd.to_numeric(nums, errors="coerce").dropna()
+        if not nums.empty:
+            return f"MAT-{int(nums.max()) + 1:03d}"
+    except Exception:
+        pass
+    return f"MAT-{len(df) + 1:03d}"
+
+def gerar_id_loja_c(df):
+    if df.empty:
+        return "LJC-001"
+    try:
+        nums = df["ID"].astype(str).str.replace("LJC-", "", regex=False)
+        nums = pd.to_numeric(nums, errors="coerce").dropna()
+        if not nums.empty:
+            return f"LJC-{int(nums.max()) + 1:03d}"
+    except Exception:
+        pass
+    return f"LJC-{len(df) + 1:03d}"
+
+def lista_clientes_compras(dados_c=None):
+    # Sempre retorna os clientes hardcoded + os do Excel
+    hardcoded = list(CLIENTES_COMPRAS)
+    if dados_c is None:
+        dados_c = carregar_compras()
+    df = dados_c.get("Clientes_Compras", pd.DataFrame(columns=["Nome"]))
+    do_excel = [c for c in df["Nome"].astype(str).str.strip().unique() if c and c != "nan"]
+    return sorted(list(set(hardcoded + do_excel)))
+
+def lista_lojas_compras(dados_c=None, cliente=None):
+    # Retorna lojas hardcoded por cliente + as do Excel
+    hardcoded = []
+    if cliente and cliente != "Todos":
+        hardcoded = LOJAS_POR_CLIENTE.get(cliente, [])
+    else:
+        for lst in LOJAS_POR_CLIENTE.values():
+            hardcoded.extend(lst)
+    if dados_c is None:
+        dados_c = carregar_compras()
+    df = dados_c.get("Lojas_Compras", pd.DataFrame(columns=["ID","Nome","Cliente"]))
+    lojas = df.copy()
+    if cliente and cliente != "Todos":
+        lojas = lojas[lojas["Cliente"].astype(str).str.strip() == cliente]
+    do_excel = [l for l in lojas["Nome"].astype(str).str.strip().unique() if l and l != "nan"]
+    return sorted(list(set(hardcoded + do_excel)))
+
+def lista_materiais_nomes(dados_c=None, cliente=None):
+    # Retorna materiais hardcoded por cliente + os do Excel
+    hardcoded = []
+    if cliente and cliente != "Todos":
+        hardcoded = MATERIAIS_POR_CLIENTE.get(cliente, [])
+    else:
+        for lst in MATERIAIS_POR_CLIENTE.values():
+            hardcoded.extend(lst)
+    if dados_c is None:
+        dados_c = carregar_compras()
+    df = dados_c.get("Materiais", pd.DataFrame(columns=["ID","Nome","Cliente","Categoria"]))
+    mats = df.copy()
+    if cliente and cliente != "Todos":
+        mats = mats[mats["Cliente"].astype(str).str.strip() == cliente]
+    do_excel = [m for m in mats["Nome"].astype(str).str.strip().unique() if m and m != "nan"]
+    return sorted(list(set(hardcoded + do_excel)))
+
+
+def lista_epis_por_cliente(cliente=None):
+    if cliente and cliente != "Todos":
+        return EPIS_POR_CLIENTE.get(cliente, [])
+    todos = []
+    for lst in EPIS_POR_CLIENTE.values():
+        todos.extend(lst)
+    return sorted(list(set(todos)))
+
+def badge_status(status):
+    cores = {
+        "Pendente": "🟡",
+        "Aprovado": "🔵",
+        "Em Trânsito": "🟠",
+        "Entregue": "🟢",
+        "Cancelado": "🔴",
+        "Enviado": "📦",
+        "Devolvido": "↩️"
+    }
+    return cores.get(status, "⚪") + " " + status
+
+def formatar_valor(v):
+    try:
+        return f"R$ {float(v):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    except:
+        return "R$ 0,00"
+
 
 # ====================== BACKUP / RESTORE ======================
 import zipfile
@@ -875,7 +1132,7 @@ if "afastamentos_verificado" not in st.session_state:
 
 # ⚠️ LINHA OBRIGATÓRIA: CRIA TODAS AS ABAS ANTES DE USÁ-LAS
 aba1, aba2, aba3, aba4, aba5, aba6, aba7, aba8, aba9, aba10, aba11 = st.tabs([
-    "Cadastro", "Painel", "Prazos e Férias", "Histórico", "Relatórios", "📎 Documentos", "⚙️ Lojas e Cargos", "💰 CONTROLE DE DIÁRIAS", "🗺️ GUIA VIAGEM", "💾 Backup", "🌐 Tradutor"
+    "Cadastro", "Painel", "Prazos e Férias", "Histórico", "Relatórios", "📎 Documentos", "⚙️ Lojas e Cargos", "💰 CONTROLE DE DIÁRIAS", "🗺️ GUIA VIAGEM", "💾 Backup", "📦 Compras e Entregas"
 ])
 
 
@@ -2609,175 +2866,6 @@ with aba9:
             with col_ev:
                 st.markdown("**🗑️ Para excluir:** delete as linhas na tabela (tecla Delete) e clique em SALVAR ALTERAÇÕES.")
 
-
-        # --- RESUMO, GRÁFICOS E EXPORTAÇÃO ---
-        st.markdown("---")
-        st.markdown("### 📊 RESUMO E ANÁLISE DE VIAGENS")
-
-        if df_viagens.empty:
-            st.info("ℹ️ Nenhuma viagem registrada para gerar resumos e gráficos.")
-        else:
-            try:
-                df_v_num = df_viagens.copy()
-                for col in ["VALOR_LIBERADO", "TOTAL_GASTO", "RESTANTE"]:
-                    df_v_num[col] = pd.to_numeric(df_v_num[col].astype(str).str.replace(",", "."), errors="coerce").fillna(0)
-
-                total_viagens = len(df_v_num)
-                total_liberado = df_v_num["VALOR_LIBERADO"].sum()
-                total_gasto = df_v_num["TOTAL_GASTO"].sum()
-                total_restante = df_v_num["RESTANTE"].sum()
-                media_gasto = df_v_num["TOTAL_GASTO"].mean()
-
-                r1, r2, r3, r4, r5 = st.columns(5)
-                with r1:
-                    st.metric("🧳 Viagens", f"{total_viagens}")
-                with r2:
-                    st.metric("💰 Liberado", f"R$ {total_liberado:,.2f}")
-                with r3:
-                    st.metric("💸 Gasto", f"R$ {total_gasto:,.2f}")
-                with r4:
-                    st.metric("📊 Restante", f"R$ {total_restante:,.2f}")
-                with r5:
-                    st.metric("📈 Média Gasto", f"R$ {media_gasto:,.2f}")
-
-                st.markdown("---")
-                st.markdown("#### 📈 Gráficos")
-
-                g1, g2 = st.columns(2)
-                with g1:
-                    status_counts = df_v_num["STATUS"].value_counts()
-                    if not status_counts.empty:
-                        fig1, ax1 = plt.subplots(figsize=(4.5, 3.5))
-                        colors = {"Planejada": "#3498db", "Em Andamento": "#f1c40f", "Concluída": "#2ecc71", "Cancelada": "#e74c3c"}
-                        pie_colors = [colors.get(s, "#95a5a6") for s in status_counts.index]
-                        ax1.pie(status_counts.values, labels=status_counts.index, autopct="%1.1f%%", colors=pie_colors, startangle=90)
-                        ax1.set_title("Distribuição por Status", fontsize=10, fontweight="bold")
-                        plt.tight_layout()
-                        st.pyplot(fig1)
-                        plt.close(fig1)
-
-                with g2:
-                    top_colab = df_v_num.groupby("COLABORADOR")["TOTAL_GASTO"].sum().sort_values(ascending=True).tail(10)
-                    if not top_colab.empty:
-                        fig2, ax2 = plt.subplots(figsize=(4.5, 3.5))
-                        top_colab.plot(kind="barh", ax=ax2, color="#2ecc71")
-                        ax2.set_title("Top 10 Colaboradores - Total Gasto", fontsize=10, fontweight="bold")
-                        ax2.set_xlabel("R$", fontsize=8)
-                        plt.tight_layout()
-                        st.pyplot(fig2)
-                        plt.close(fig2)
-
-                g3, g4 = st.columns(2)
-                with g3:
-                    loja_gasto = df_v_num.groupby("LOJA")["TOTAL_GASTO"].sum().sort_values(ascending=False).head(10)
-                    if not loja_gasto.empty:
-                        fig3, ax3 = plt.subplots(figsize=(4.5, 3.5))
-                        loja_gasto.plot(kind="bar", ax=ax3, color="#3498db")
-                        ax3.set_title("Top 10 Lojas - Total Gasto", fontsize=10, fontweight="bold")
-                        ax3.set_ylabel("R$", fontsize=8)
-                        ax3.tick_params(axis="x", rotation=45, labelsize=7)
-                        plt.tight_layout()
-                        st.pyplot(fig3)
-                        plt.close(fig3)
-
-                with g4:
-                    try:
-                        df_v_num["MES"] = pd.to_datetime(df_v_num["DATA_CADASTRO"], format="%d/%m/%Y %H:%M", errors="coerce").dt.to_period("M").astype(str)
-                        mes_counts = df_v_num["MES"].value_counts().sort_index().tail(12)
-                        if not mes_counts.empty:
-                            fig4, ax4 = plt.subplots(figsize=(4.5, 3.5))
-                            mes_counts.plot(kind="line", ax=ax4, marker="o", color="#e74c3c")
-                            ax4.set_title("Viagens por Mês (últimos 12)", fontsize=10, fontweight="bold")
-                            ax4.set_ylabel("Quantidade", fontsize=8)
-                            ax4.tick_params(axis="x", rotation=45, labelsize=7)
-                            plt.tight_layout()
-                            st.pyplot(fig4)
-                            plt.close(fig4)
-                    except Exception:
-                        pass
-
-                st.markdown("---")
-                st.markdown("#### 📥 EXPORTAR DADOS")
-                e1, e2 = st.columns(2)
-                with e1:
-                    excel_buffer = io.BytesIO()
-                    with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
-                        df_v_num.to_excel(writer, sheet_name="Viagens", index=False)
-                    st.download_button(
-                        label="📊 EXPORTAR EXCEL",
-                        data=excel_buffer.getvalue(),
-                        file_name=f"Resumo_Viagens_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        use_container_width=True,
-                    )
-                with e2:
-                    try:
-                        from reportlab.lib.pagesizes import letter
-                        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-                        from reportlab.lib.styles import getSampleStyleSheet
-                        from reportlab.lib import colors
-
-                        pdf_buffer = io.BytesIO()
-                        doc = SimpleDocTemplate(pdf_buffer, pagesize=letter)
-                        elements = []
-                        styles = getSampleStyleSheet()
-                        elements.append(Paragraph("<b>RESUMO DE VIAGENS</b>", styles["Title"]))
-                        elements.append(Paragraph(f"Gerado em: {datetime.now().strftime('%d/%m/%Y %H:%M')}", styles["Normal"]))
-                        elements.append(Spacer(1, 12))
-
-                        # Resumo em tabela
-                        resumo_data = [
-                            ["Total de Viagens", str(total_viagens)],
-                            ["Total Liberado", f"R$ {total_liberado:,.2f}"],
-                            ["Total Gasto", f"R$ {total_gasto:,.2f}"],
-                            ["Total Restante", f"R$ {total_restante:,.2f}"],
-                            ["Média de Gasto", f"R$ {media_gasto:,.2f}"],
-                        ]
-                        t_resumo = Table(resumo_data, colWidths=[200, 200])
-                        t_resumo.setStyle(TableStyle([
-                            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#3498db")),
-                            ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
-                            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-                            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                            ("FONTSIZE", (0, 0), (-1, 0), 10),
-                            ("BOTTOMPADDING", (0, 0), (-1, 0), 8),
-                            ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#ecf0f1")),
-                            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-                        ]))
-                        elements.append(t_resumo)
-                        elements.append(Spacer(1, 20))
-
-                        # Tabela de viagens (top 30)
-                        top_df = df_v_num.sort_values("TOTAL_GASTO", ascending=False).head(30)
-                        top_df = top_df[["NUMERO_VIAGEM", "COLABORADOR", "LOJA", "DESTINO", "VALOR_LIBERADO", "TOTAL_GASTO", "RESTANTE", "STATUS"]]
-                        top_df = top_df.fillna("")
-                        table_data = [top_df.columns.tolist()] + top_df.values.tolist()
-                        t_viagens = Table(table_data, repeatRows=1)
-                        t_viagens.setStyle(TableStyle([
-                            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2c3e50")),
-                            ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
-                            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-                            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                            ("FONTSIZE", (0, 0), (-1, 0), 9),
-                            ("BOTTOMPADDING", (0, 0), (-1, 0), 6),
-                            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-                            ("FONTSIZE", (0, 1), (-1, -1), 8),
-                        ]))
-                        elements.append(t_viagens)
-                        doc.build(elements)
-                        st.download_button(
-                            label="📄 EXPORTAR PDF RESUMO",
-                            data=pdf_buffer.getvalue(),
-                            file_name=f"Resumo_Viagens_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
-                            mime="application/pdf",
-                            use_container_width=True,
-                        )
-                    except Exception as e_pdf:
-                        st.error(f"Erro ao gerar PDF: {e_pdf}")
-
-            except Exception as e:
-                st.error(f"Erro ao gerar resumos: {e}")
-
 # ================ ABA 10 - BACKUP / RESTAURAÇÃO ================
 with aba10:
     st.subheader("💾 BACKUP E RESTAURAÇÃO")
@@ -2835,299 +2923,657 @@ with aba10:
     st.caption("Dica: Faça backup periodicamente ou sempre antes de atualizar o código no Streamlit Cloud.")
 
 
-# ================ ABA 11 - TRADUTOR ================
-
-@st.cache_data(show_spinner=False)
-def traduzir_texto(texto, origem="auto", destino="pt"):
-    """Traduz texto usando a API gratuita do Google Translate via requests."""
-    try:
-        url = "https://translate.googleapis.com/translate_a/single"
-        params = {
-            "client": "gtx",
-            "sl": origem,
-            "tl": destino,
-            "dt": "t",
-            "q": texto,
-        }
-        resp = requests.get(url, params=params, timeout=15)
-        resp.raise_for_status()
-        dados = resp.json()
-        if dados and isinstance(dados, list) and dados[0]:
-            partes = [p[0] for p in dados[0] if isinstance(p, list) and len(p) > 0]
-            return "".join(partes)
-    except Exception:
-        pass
-    return None
-
-
-IDIOMAS = {
-    "Português": "pt",
-    "Inglês": "en",
-    "Espanhol": "es",
-    "Francês": "fr",
-    "Alemão": "de",
-    "Italiano": "it",
-    "Chinês (Simplificado)": "zh-CN",
-    "Japonês": "ja",
-    "Coreano": "ko",
-    "Árabe": "ar",
-    "Russo": "ru",
-    "Holandês": "nl",
-    "Turco": "tr",
-    "Hindi": "hi",
-    "Polonês": "pl",
-}
-
+# ================ ABA 11 - COMPRAS E ENTREGAS ================
 with aba11:
-    st.subheader("🌐 TRADUTOR MULTILÍNGUE")
-    st.info("Traduza textos, gere áudio a partir de textos e transcreva arquivos de áudio para texto.")
+    st.subheader("📦 COMPRAS E CONTROLE DE ENTREGAS")
+    st.caption("Gerencie solicitações de materiais, EPIs e acompanhe entregas por loja.")
 
-    sub_aba_txt, sub_aba_tts, sub_aba_stt = st.tabs(["📝 Texto → Texto", "🔊 Texto → Áudio", "🎤 Áudio → Texto"])
+    dados_c = carregar_compras()
+    df_solic = dados_c.get("Solicitacoes", pd.DataFrame(columns=["ID","Data","Cliente","Loja","Tipo","Solicitante","Prioridade","Status","Previsao","Observacoes","ValorTotal","ItensJSON","Anexos"]))
+    df_ent = dados_c.get("Entregas", pd.DataFrame(columns=["ID_Solicitacao","Loja","Tipo","DataEnvio","DataPrevista","DataEntrega","Transportadora","Rastreio","Status","Observacoes"]))
+    df_mat = dados_c.get("Materiais", pd.DataFrame(columns=["ID","Nome","Cliente","Categoria"]))
+    df_loja_c = dados_c.get("Lojas_Compras", pd.DataFrame(columns=["ID","Nome","Cliente"]))
+    df_cli_c = dados_c.get("Clientes_Compras", pd.DataFrame(columns=["Nome"]))
 
-    # ---------- SUB-ABA 1: TEXTO → TEXTO ----------
-    with sub_aba_txt:
-        st.markdown("### 📝 Tradução de Texto")
-        c1, c2 = st.columns(2)
+    sub_aba_dash, sub_aba_nova, sub_aba_solic, sub_aba_ent, sub_aba_mat, sub_aba_lojas, sub_aba_rel, sub_aba_tradutor = st.tabs([
+        "📊 Dashboard", "➕ Nova Solicitação", "📋 Solicitações", "🚚 Entregas", "📑 Materiais", "🏪 Lojas e Clientes", "📥 Relatórios", "🌐 Tradutor"
+    ])
+
+    # ---------- DASHBOARD ----------
+    with sub_aba_dash:
+        c1, c2, c3, c4, c5 = st.columns(5)
+        total_s = len(df_solic)
+        pendentes = len(df_solic[df_solic["Status"].astype(str).str.strip() == "Pendente"])
+        transito = len(df_solic[df_solic["Status"].astype(str).str.strip() == "Em Trânsito"])
+        entregues = len(df_solic[df_solic["Status"].astype(str).str.strip() == "Entregue"])
+        cancelados = len(df_solic[df_solic["Status"].astype(str).str.strip() == "Cancelado"])
         with c1:
-            idioma_origem = st.selectbox("Idioma de Origem", ["Auto-detectar"] + list(IDIOMAS.keys()), key="trad_origem")
+            st.metric("📋 Total", total_s)
         with c2:
-            idioma_destino = st.selectbox("Idioma de Destino", list(IDIOMAS.keys()), index=1, key="trad_destino")
+            st.metric("🟡 Pendentes", pendentes)
+        with c3:
+            st.metric("🟠 Em Trânsito", transito)
+        with c4:
+            st.metric("🟢 Entregues", entregues)
+        with c5:
+            st.metric("🔴 Cancelados", cancelados)
 
-        texto_origem = st.text_area("✍️ Digite o texto para traduzir", height=150, key="trad_texto_origem")
+        st.markdown("---")
+        st.markdown("### 📋 Solicitações Recentes")
+        if df_solic.empty:
+            st.info("ℹ️ Nenhuma solicitação cadastrada.")
+        else:
+            df_rec = df_solic.tail(10).iloc[::-1].copy()
+            df_rec["Badge"] = df_rec["Status"].apply(badge_status)
+            df_rec["Valor"] = df_rec["ValorTotal"].apply(formatar_valor)
+            st.dataframe(
+                df_rec[["ID","Data","Cliente","Loja","Tipo","Solicitante","Prioridade","Badge","Valor"]],
+                use_container_width=True, hide_index=True
+            )
 
-        if st.button("🔄 TRADUZIR", type="primary", use_container_width=True):
-            if not texto_origem.strip():
-                st.warning("⚠️ Digite um texto para traduzir.")
-            else:
-                with st.spinner("Traduzindo..."):
-                    cod_origem = "auto" if idioma_origem == "Auto-detectar" else IDIOMAS.get(idioma_origem, "auto")
-                    cod_destino = IDIOMAS.get(idioma_destino, "pt")
-                    resultado = traduzir_texto(texto_origem, origem=cod_origem, destino=cod_destino)
-                if resultado:
-                    st.success("✅ Tradução concluída!")
-                    st.text_area("📋 Resultado da Tradução", value=resultado, height=150, key="trad_texto_resultado")
-                    st.download_button(
-                        label="📥 Baixar Tradução (.txt)",
-                        data=resultado.encode("utf-8"),
-                        file_name=f"traducao_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
-                        mime="text/plain",
-                    )
-                else:
-                    st.error("❌ Não foi possível traduzir. Verifique a conexão com a internet.")
+    # ---------- NOVA SOLICITAÇÃO ----------
+    with sub_aba_nova:
+        st.markdown("### ➕ Nova Solicitação")
 
-    # ---------- SUB-ABA 2: TEXTO → ÁUDIO (TTS) ----------
-    with sub_aba_tts:
-        st.markdown("### 🔊 Texto para Áudio (TTS)")
-        st.caption("Converta texto em fala e ouça ou baixe o áudio gerado.")
+        # Inicializa session_state
+        if "itens_solic" not in st.session_state:
+            st.session_state["itens_solic"] = []
 
-        idioma_tts = st.selectbox("Idioma do Texto / Áudio", list(IDIOMAS.keys()), index=0, key="tts_idioma")
-        texto_tts = st.text_area("✍️ Digite o texto para converter em áudio", height=150, key="tts_texto")
+        # Seletores fora do form para atualização dinâmica das combos
+        col_filtros = st.columns([1, 1, 1])
+        with col_filtros[0]:
+            tipo_sol = st.selectbox("Tipo *", TIPOS_SOLICITACAO, key="tipo_sol")
+        with col_filtros[1]:
+            cliente_sol = st.selectbox("Cliente *", [""] + lista_clientes_compras(dados_c), key="cliente_sol")
+        with col_filtros[2]:
+            lojas_disp = [""] + lista_lojas_compras(dados_c, cliente_sol) if cliente_sol else [""]
+            loja_sol = st.selectbox("Loja *", lojas_disp, key="loja_sol")
 
-        if st.button("🔊 GERAR ÁUDIO", type="primary", use_container_width=True):
-            if not texto_tts.strip():
-                st.warning("⚠️ Digite um texto para converter.")
-            else:
-                try:
-                    from gtts import gTTS
-                except ImportError:
-                    st.error("❌ A biblioteca `gTTS` não está instalada. Execute: `pip install gtts`")
-                    st.stop()
+        with st.form("form_nova_solicitacao", clear_on_submit=False):
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.markdown(f"**Tipo:** {tipo_sol}")
+                st.markdown(f"**Cliente:** {cliente_sol}")
+            with col2:
+                st.markdown(f"**Loja:** {loja_sol}")
+                prioridade_sol = st.selectbox("Prioridade", PRIORIDADES_SOLICITACAO)
+            with col3:
+                solicitante_sol = st.text_input("Solicitante *")
+                previsao_sol = st.text_input("Previsão de Entrega (DD/MM/AAAA)")
 
-                with st.spinner("Gerando áudio..."):
-                    cod_tts = IDIOMAS.get(idioma_tts, "pt")
-                    tts = gTTS(text=texto_tts, lang=cod_tts, slow=False)
-                    mp3_buffer = io.BytesIO()
-                    tts.write_to_fp(mp3_buffer)
-                    mp3_buffer.seek(0)
+            observacoes_sol = st.text_area("Observações")
 
-                st.success("✅ Áudio gerado com sucesso!")
-                st.audio(mp3_buffer, format="audio/mp3")
-                st.download_button(
-                    label="📥 Baixar Áudio (.mp3)",
-                    data=mp3_buffer.getvalue(),
-                    file_name=f"audio_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp3",
-                    mime="audio/mpeg",
-                )
+            st.markdown("#### 📝 Itens da Solicitação")
 
-    # ---------- SUB-ABA 3: ÁUDIO → TEXTO (STT) + CORREÇÃO + TTS ----------
-    with sub_aba_stt:
-        st.markdown("### 🎤 Fale, Transcreva, Traduza e Corrija")
-        st.caption("Grave áudio pelo microfone ou envie um arquivo. O sistema transcreve, traduz e permite correções por escrito ou por nova fala.")
-
-        # --- Entrada de áudio: Microfone + Upload ---
-        col_mic, col_up = st.columns(2)
-        with col_mic:
-            st.markdown("**🎙️ Gravar pelo Microfone**")
-            audio_gravado = None
-            try:
-                audio_gravado = st.audio_input("Clique para gravar sua fala", key="stt_mic")
-            except Exception:
-                st.info("ℹ️ Para gravação direta pelo navegador, atualize o Streamlit para versão 1.37 ou superior.")
-        with col_up:
-            st.markdown("**📁 Ou envie um arquivo**")
-            arquivo_audio = st.file_uploader("Selecione .wav, .mp3, .ogg ou .flac", type=["wav", "mp3", "ogg", "flac"], key="stt_upload")
-
-        audio_final = audio_gravado if audio_gravado is not None else arquivo_audio
-
-        c1, c2 = st.columns(2)
-        with c1:
-            idioma_audio = st.selectbox("Idioma do Áudio", list(IDIOMAS.keys()), index=0, key="stt_idioma")
-        with c2:
-            idioma_trad = st.selectbox("Traduzir para", list(IDIOMAS.keys()), index=0, key="stt_idioma_trad")
-
-        if audio_final is not None:
-            if st.button("🎤 TRANSCREVER E TRADUZIR", type="primary", use_container_width=True):
-                try:
-                    import speech_recognition as sr
-                except ImportError:
-                    st.error("❌ A biblioteca `SpeechRecognition` não está instalada. Execute: `pip install SpeechRecognition`")
-                    st.stop()
-
-                with st.spinner("Processando áudio..."):
-                    # Salvar áudio temporariamente
-                    if hasattr(audio_final, 'name'):
-                        ext = os.path.splitext(audio_final.name)[1].lower()
-                        tmp_path = f"/tmp/stt_audio_{datetime.now().strftime('%Y%m%d%H%M%S')}{ext}"
-                        with open(tmp_path, "wb") as f_audio:
-                            f_audio.write(audio_final.getvalue())
-                    else:
-                        # st.audio_input retorna bytes diretamente
-                        tmp_path = f"/tmp/stt_audio_{datetime.now().strftime('%Y%m%d%H%M%S')}.wav"
-                        with open(tmp_path, "wb") as f_audio:
-                            f_audio.write(audio_final.getvalue() if hasattr(audio_final, 'getvalue') else audio_final)
-                        ext = ".wav"
-
-                    # Converter para wav se necessário
-                    wav_path = tmp_path
-                    if ext != ".wav":
-                        try:
-                            from pydub import AudioSegment
-                            wav_path = tmp_path.replace(ext, ".wav")
-                            audio_seg = AudioSegment.from_file(tmp_path, format=ext.replace(".", ""))
-                            audio_seg.export(wav_path, format="wav")
-                        except ImportError:
-                            st.error("❌ Para arquivos MP3/OGG/FLAC é necessário instalar: `pip install pydub` (e ter ffmpeg instalado no sistema).")
-                            os.remove(tmp_path)
-                            st.stop()
-                        except Exception as e_conv:
-                            st.error(f"❌ Erro ao converter áudio: {e_conv}")
-                            if os.path.exists(tmp_path):
-                                os.remove(tmp_path)
-                            st.stop()
-
-                    recognizer = sr.Recognizer()
-                    try:
-                        with sr.AudioFile(wav_path) as source:
-                            audio_data = recognizer.record(source)
-                        cod_stt = IDIOMAS.get(idioma_audio, "pt")
-                        texto_transcrito = recognizer.recognize_google(audio_data, language=cod_stt)
-
-                        # Traduzir automaticamente
-                        cod_trad = IDIOMAS.get(idioma_trad, "pt")
-                        texto_traduzido = ""
-                        if texto_transcrito.strip():
-                            texto_traduzido = traduzir_texto(texto_transcrito, origem=cod_stt, destino=cod_trad)
-                            if texto_traduzido is None:
-                                texto_traduzido = ""
-
-                        # Armazenar no session_state
-                        st.session_state["stt_texto_transcrito"] = texto_transcrito
-                        st.session_state["stt_texto_traduzido"] = texto_traduzido
-                        st.session_state["stt_cod_idioma_trad"] = cod_trad
+            if tipo_sol == "Material":
+                mats_disp = [""] + lista_materiais_nomes(dados_c, cliente_sol) if cliente_sol else [""]
+                if not mats_disp or mats_disp == [""]:
+                    st.info("ℹ️ Selecione um cliente para ver os materiais disponíveis.")
+                col_m1, col_m2, col_m3 = st.columns([3, 1, 1])
+                with col_m1:
+                    mat_sel = st.selectbox("Material", mats_disp, key="mat_sel")
+                with col_m2:
+                    mat_qtd = st.number_input("Qtd", min_value=1, value=1, step=1, key="mat_qtd")
+                with col_m3:
+                    mat_val = st.number_input("Valor Unit. (R$)", min_value=0.0, step=0.01, format="%.2f", key="mat_val")
+                if st.form_submit_button("➕ Adicionar Item", type="secondary"):
+                    if mat_sel:
+                        st.session_state["itens_solic"].append({
+                            "material": mat_sel, "qtd": int(mat_qtd), "valor": float(mat_val)
+                        })
+                        st.rerun()
+            else:  # EPI
+                mats_epi = lista_epis_por_cliente(cliente_sol) if cliente_sol else []
+                if not mats_epi:
+                    st.info("ℹ️ Selecione um cliente para ver os EPIs disponíveis.")
+                col_e1, col_e2, col_e3, col_e4 = st.columns([2, 2, 1, 1])
+                with col_e1:
+                    epi_sel = st.selectbox("EPI", mats_epi, key="epi_sel")
+                with col_e2:
+                    epi_colab = st.text_input("Colaborador", key="epi_colab")
+                with col_e3:
+                    epi_qtd = st.number_input("Qtd", min_value=1, value=1, step=1, key="epi_qtd")
+                with col_e4:
+                    epi_tam = st.selectbox("Tam", ["","P","M","G","GG","37","38","39","40","41","42","43","44"], key="epi_tam")
+                if st.form_submit_button("➕ Adicionar EPI", type="secondary"):
+                    if epi_sel and epi_colab:
+                        st.session_state["itens_solic"].append({
+                            "epi": epi_sel, "colaborador": epi_colab, "qtd": int(epi_qtd), "tamanho": epi_tam
+                        })
                         st.rerun()
 
-                    except sr.UnknownValueError:
-                        st.error("❌ Não foi possível entender o áudio. Verifique a qualidade do arquivo ou fale mais próximo do microfone.")
-                    except sr.RequestError as e_req:
-                        st.error(f"❌ Erro no serviço de reconhecimento: {e_req}")
-                    except Exception as e_all:
-                        st.error(f"❌ Erro ao processar áudio: {e_all}")
-                    finally:
-                        if os.path.exists(tmp_path):
-                            os.remove(tmp_path)
-                        if os.path.exists(wav_path) and wav_path != tmp_path:
-                            os.remove(wav_path)
-
-        # --- SEÇÃO DE CORREÇÃO ---
-        if "stt_texto_transcrito" in st.session_state:
-            st.markdown("---")
-            st.markdown("### ✏️ Resultado e Correção")
-
-            col_res1, col_res2 = st.columns(2)
-            with col_res1:
-                st.markdown("**📝 Texto Original Transcrito**")
-                st.info(st.session_state.get("stt_texto_transcrito", ""))
-            with col_res2:
-                st.markdown("**📋 Tradução (editável)**")
-                texto_traducao_editado = st.text_area(
-                    "Edite a tradução se estiver incorreta",
-                    value=st.session_state.get("stt_texto_traduzido", ""),
-                    height=120,
-                    key="stt_traducao_edit",
-                    label_visibility="collapsed"
-                )
-
-            # Atualiza session_state com o texto editado
-            if texto_traducao_editado != st.session_state.get("stt_texto_traduzido", ""):
-                st.session_state["stt_texto_traduzido"] = texto_traducao_editado
-
-            col_btn1, col_btn2, col_btn3, col_btn4 = st.columns(4)
-
-            with col_btn1:
-                if st.button("🔊 Ouvir Tradução", use_container_width=True, key="stt_ouvir"):
-                    texto_ouvir = st.session_state.get("stt_texto_traduzido", "")
-                    if not texto_ouvir.strip():
-                        st.warning("⚠️ Nenhuma tradução para ouvir.")
+            if st.session_state["itens_solic"]:
+                st.markdown("**Itens adicionados:**")
+                for i, it in enumerate(st.session_state["itens_solic"]):
+                    if tipo_sol == "Material":
+                        st.write(f"{i+1}. {it['material']} — Qtd: {it['qtd']} — Valor: {formatar_valor(it['valor'])} — Subtotal: {formatar_valor(it['qtd'] * it['valor'])}")
                     else:
-                        try:
-                            from gtts import gTTS
-                        except ImportError:
-                            st.error("❌ A biblioteca `gTTS` não está instalada. Execute: `pip install gtts`")
-                            st.stop()
-                        with st.spinner("Gerando áudio..."):
-                            cod_tts = st.session_state.get("stt_cod_idioma_trad", "pt")
-                            # Garante que o código de idioma seja suportado pelo gTTS
-                            try:
-                                from gtts.lang import tts_langs
-                                suportados = tts_langs()
-                            except Exception:
-                                suportados = {}
-                            if not cod_tts or cod_tts not in suportados:
-                                cod_tts = "pt"
-                                st.info(f"ℹ️ Idioma não suportado para áudio. Usando Português.")
-                            tts = gTTS(text=texto_ouvir, lang=cod_tts, slow=False)
-                            mp3_buffer = io.BytesIO()
-                            tts.write_to_fp(mp3_buffer)
-                            mp3_buffer.seek(0)
-                        st.success("✅ Áudio gerado!")
-                        st.audio(mp3_buffer, format="audio/mp3")
-                        st.download_button(
-                            label="📥 Baixar Áudio",
-                            data=mp3_buffer.getvalue(),
-                            file_name=f"traducao_audio_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp3",
-                            mime="audio/mpeg",
-                            key="stt_download_audio"
-                        )
+                        st.write(f"{i+1}. {it['epi']} — Colab: {it['colaborador']} — Qtd: {it['qtd']} — Tam: {it['tamanho']}")
+                if st.form_submit_button("🗑️ Limpar Itens", type="secondary"):
+                    st.session_state["itens_solic"] = []
+                    st.rerun()
+            else:
+                st.info("Nenhum item adicionado.")
 
-            with col_btn2:
-                if st.button("🎙️ Regravar Áudio", use_container_width=True, key="stt_regravar"):
-                    for chave in ["stt_texto_transcrito", "stt_texto_traduzido", "stt_cod_idioma_trad"]:
-                        if chave in st.session_state:
-                            del st.session_state[chave]
+            anexos_sol = st.file_uploader("📎 Anexos (opcional)", accept_multiple_files=True, key="anexos_sol")
+
+            submitted_sol = st.form_submit_button("💾 SALVAR SOLICITAÇÃO", type="primary")
+            if submitted_sol:
+                if not cliente_sol or not loja_sol or not solicitante_sol.strip():
+                    st.error("❌ Cliente, Loja e Solicitante são obrigatórios!")
+                elif not st.session_state["itens_solic"]:
+                    st.error("❌ Adicione pelo menos um item!")
+                else:
+                    novo_id = gerar_id_solicitacao(df_solic)
+                    valor_total = 0.0
+                    if tipo_sol == "Material":
+                        valor_total = sum(it.get("qtd", 0) * it.get("valor", 0) for it in st.session_state["itens_solic"])
+                    itens_json = json.dumps(st.session_state["itens_solic"], ensure_ascii=False)
+                    anexos_list = []
+                    if anexos_sol:
+                        for anexo in anexos_sol:
+                            nome_arq = f"{novo_id}_{anexo.name}"
+                            caminho = os.path.join(PASTA_ANEXOS_COMPRAS, nome_arq)
+                            with open(caminho, "wb") as f:
+                                f.write(anexo.getvalue())
+                            anexos_list.append(nome_arq)
+                    nova_solic = {
+                        "ID": novo_id,
+                        "Data": datetime.now().strftime("%d/%m/%Y"),
+                        "Cliente": cliente_sol,
+                        "Loja": loja_sol,
+                        "Tipo": tipo_sol,
+                        "Solicitante": solicitante_sol.strip().upper(),
+                        "Prioridade": prioridade_sol,
+                        "Status": "Pendente",
+                        "Previsao": previsao_sol.strip(),
+                        "Observacoes": observacoes_sol.strip().upper(),
+                        "ValorTotal": f"{valor_total:.2f}",
+                        "ItensJSON": itens_json,
+                        "Anexos": "|".join(anexos_list)
+                    }
+                    df_solic = pd.concat([df_solic, pd.DataFrame([nova_solic])], ignore_index=True)
+                    dados_c["Solicitacoes"] = df_solic
+                    # Cria entrega vinculada
+                    nova_entrega = {
+                        "ID_Solicitacao": novo_id,
+                        "Loja": loja_sol,
+                        "Tipo": tipo_sol,
+                        "DataEnvio": "",
+                        "DataPrevista": previsao_sol.strip(),
+                        "DataEntrega": "",
+                        "Transportadora": "",
+                        "Rastreio": "",
+                        "Status": "Pendente",
+                        "Observacoes": ""
+                    }
+                    df_ent = pd.concat([df_ent, pd.DataFrame([nova_entrega])], ignore_index=True)
+                    dados_c["Entregas"] = df_ent
+                    salvar_compras(dados_c)
+                    st.session_state["itens_solic"] = []
+                    st.success(f"✅ Solicitação {novo_id} cadastrada com sucesso!")
+                    time.sleep(0.5)
                     st.rerun()
 
-            with col_btn3:
-                if st.button("💾 Salvar Correção", use_container_width=True, key="stt_salvar"):
-                    st.session_state["stt_texto_traduzido"] = texto_traducao_editado
-                    st.success("✅ Correção salva!")
+    # ---------- SOLICITAÇÕES ----------
+    with sub_aba_solic:
+        st.markdown("### 📋 Solicitações")
+        fs1, fs2, fs3, fs4, fs5 = st.columns(5)
+        with fs1:
+            f_busca_s = st.text_input("🔍 Buscar", key="filtro_busca_solic")
+        with fs2:
+            f_cli_s = st.selectbox("Cliente", ["Todos"] + lista_clientes_compras(dados_c), key="filtro_cli_solic")
+        with fs3:
+            f_loja_s = st.selectbox("Loja", ["Todas"] + lista_lojas_compras(dados_c, f_cli_s if f_cli_s != "Todos" else None), key="filtro_loja_solic")
+        with fs4:
+            f_tipo_s = st.selectbox("Tipo", ["Todos"] + TIPOS_SOLICITACAO, key="filtro_tipo_solic")
+        with fs5:
+            f_status_s = st.selectbox("Status", ["Todos"] + STATUS_SOLICITACAO, key="filtro_status_solic")
 
-            with col_btn4:
-                if st.button("📥 Baixar Textos", use_container_width=True, key="stt_baixar"):
-                    texto_salvar = f"=== TEXTO ORIGINAL ===\n{st.session_state.get('stt_texto_transcrito', '')}\n\n=== TRADUÇÃO ===\n{st.session_state.get('stt_texto_traduzido', '')}"
-                    st.download_button(
-                        label="📥 Clique para baixar .txt",
-                        data=texto_salvar.encode("utf-8"),
-                        file_name=f"traducao_corrigida_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
-                        mime="text/plain",
-                        key="stt_download_txt"
-                    )
+        df_s_filt = df_solic.copy()
+        if f_busca_s.strip():
+            mask = (
+                df_s_filt["ID"].astype(str).str.contains(f_busca_s.strip(), case=False, na=False) |
+                df_s_filt["Loja"].astype(str).str.contains(f_busca_s.strip(), case=False, na=False) |
+                df_s_filt["Solicitante"].astype(str).str.contains(f_busca_s.strip(), case=False, na=False)
+            )
+            df_s_filt = df_s_filt[mask]
+        if f_cli_s != "Todos":
+            df_s_filt = df_s_filt[df_s_filt["Cliente"].astype(str).str.strip() == f_cli_s]
+        if f_loja_s != "Todas":
+            df_s_filt = df_s_filt[df_s_filt["Loja"].astype(str).str.strip() == f_loja_s]
+        if f_tipo_s != "Todos":
+            df_s_filt = df_s_filt[df_s_filt["Tipo"].astype(str).str.strip() == f_tipo_s]
+        if f_status_s != "Todos":
+            df_s_filt = df_s_filt[df_s_filt["Status"].astype(str).str.strip() == f_status_s]
+
+        st.markdown(f"**📊 Total: {len(df_s_filt)} solicitação(ões) encontrada(s)**")
+
+        if df_s_filt.empty:
+            st.info("ℹ️ Nenhuma solicitação encontrada com os filtros aplicados.")
+        else:
+            col_cfg_s = {
+                "ID": st.column_config.TextColumn("ID", disabled=True),
+                "Data": st.column_config.TextColumn("Data"),
+                "Cliente": st.column_config.TextColumn("Cliente"),
+                "Loja": st.column_config.SelectboxColumn("Loja", options=lista_lojas_compras(dados_c)),
+                "Tipo": st.column_config.SelectboxColumn("Tipo", options=TIPOS_SOLICITACAO),
+                "Solicitante": st.column_config.TextColumn("Solicitante"),
+                "Prioridade": st.column_config.SelectboxColumn("Prioridade", options=PRIORIDADES_SOLICITACAO),
+                "Status": st.column_config.SelectboxColumn("Status", options=STATUS_SOLICITACAO),
+                "Previsao": st.column_config.TextColumn("Previsão"),
+                "Observacoes": st.column_config.TextColumn("Observações"),
+                "ValorTotal": st.column_config.NumberColumn("Valor Total (R$)", min_value=0.0, format="%.2f"),
+                "ItensJSON": st.column_config.TextColumn("Itens (JSON)", disabled=True),
+                "Anexos": st.column_config.TextColumn("Anexos", disabled=True),
+            }
+            idx_orig_s = df_s_filt.index.tolist()
+            df_s_edit = df_s_filt.reset_index(drop=True)
+            edited_s = st.data_editor(df_s_edit, column_config=col_cfg_s, use_container_width=True, hide_index=True, num_rows="dynamic", key="editor_solicitacoes")
+
+            # Totalizadores
+            try:
+                v_total = edited_s["ValorTotal"].astype(float).sum()
+                st.markdown(f"**💰 Valor Total Filtrado: {formatar_valor(v_total)}**")
+            except Exception:
+                pass
+
+            col_ss, col_es = st.columns([1, 1])
+            with col_ss:
+                if st.button("💾 SALVAR ALTERAÇÕES", type="primary", key="salvar_solicitacoes_btn"):
+                    df_s_main = dados_c["Solicitacoes"].copy()
+                    for i, idx_orig in enumerate(idx_orig_s):
+                        if i < len(edited_s):
+                            for col in df_s_main.columns:
+                                if col in edited_s.columns:
+                                    df_s_main.at[idx_orig, col] = str(edited_s.iloc[i][col])
+                    if len(edited_s) > len(idx_orig_s):
+                        for i in range(len(idx_orig_s), len(edited_s)):
+                            nova_linha = {col: "" for col in df_s_main.columns}
+                            for col in edited_s.columns:
+                                nova_linha[col] = str(edited_s.iloc[i][col])
+                            novo_id = gerar_id_solicitacao(df_s_main)
+                            nova_linha["ID"] = novo_id
+                            nova_linha["Data"] = datetime.now().strftime("%d/%m/%Y")
+                            df_s_main = pd.concat([df_s_main, pd.DataFrame([nova_linha])], ignore_index=True)
+                    if len(edited_s) < len(idx_orig_s):
+                        remover = idx_orig_s[len(edited_s):]
+                        df_s_main.drop(index=remover, inplace=True)
+                        df_s_main.reset_index(drop=True, inplace=True)
+                        # Remove entregas vinculadas
+                        df_ent_main = dados_c["Entregas"].copy()
+                        ids_rem = df_solic.iloc[remover]["ID"].astype(str).tolist() if remover else []
+                        for id_r in ids_rem:
+                            df_ent_main = df_ent_main[df_ent_main["ID_Solicitacao"].astype(str).str.strip() != id_r]
+                        dados_c["Entregas"] = df_ent_main
+                    dados_c["Solicitacoes"] = df_s_main
+                    salvar_compras(dados_c)
+                    st.success("✅ Alterações salvas com sucesso!")
+                    st.rerun()
+            with col_es:
+                st.markdown("**🗑️ Para excluir:** delete as linhas na tabela e clique em SALVAR ALTERAÇÕES.")
+
+            # Ver detalhes
+            st.markdown("---")
+            st.markdown("### 🔍 Detalhes da Solicitação")
+            id_det = st.selectbox("Selecione uma solicitação", [""] + df_s_filt["ID"].astype(str).tolist(), key="det_solic")
+            if id_det:
+                row_det = df_s_filt[df_s_filt["ID"].astype(str).str.strip() == id_det]
+                if not row_det.empty:
+                    r = row_det.iloc[0]
+                    d1, d2, d3 = st.columns(3)
+                    with d1:
+                        st.write(f"**Cliente:** {r['Cliente']}")
+                        st.write(f"**Loja:** {r['Loja']}")
+                        st.write(f"**Tipo:** {r['Tipo']}")
+                    with d2:
+                        st.write(f"**Solicitante:** {r['Solicitante']}")
+                        st.write(f"**Prioridade:** {r['Prioridade']}")
+                        st.write(f"**Status:** {badge_status(r['Status'])}")
+                    with d3:
+                        st.write(f"**Data:** {r['Data']}")
+                        st.write(f"**Previsão:** {r['Previsao']}")
+                        st.write(f"**Valor Total:** {formatar_valor(r['ValorTotal'])}")
+                    st.write(f"**Observações:** {r['Observacoes']}")
+                    try:
+                        itens_det = json.loads(r["ItensJSON"]) if r["ItensJSON"] else []
+                        if itens_det:
+                            st.markdown("**Itens:**")
+                            for it_d in itens_det:
+                                if r["Tipo"] == "Material":
+                                    st.write(f"- {it_d.get('material','')} | Qtd: {it_d.get('qtd',0)} | Valor: {formatar_valor(it_d.get('valor',0))}")
+                                else:
+                                    st.write(f"- {it_d.get('epi','')} | Colab: {it_d.get('colaborador','')} | Qtd: {it_d.get('qtd',0)} | Tam: {it_d.get('tamanho','')}")
+                    except Exception:
+                        pass
+                    if r["Anexos"]:
+                        st.markdown("**📎 Anexos:**")
+                        for anx in str(r["Anexos"]).split("|"):
+                            if anx.strip():
+                                caminho_anx = os.path.join(PASTA_ANEXOS_COMPRAS, anx.strip())
+                                if os.path.exists(caminho_anx):
+                                    with open(caminho_anx, "rb") as f:
+                                        st.download_button(f"⬇️ {anx.strip()}", f.read(), file_name=anx.strip(), key=f"dl_{anx.strip()}")
+
+    # ---------- ENTREGAS ----------
+    with sub_aba_ent:
+        st.markdown("### 🚚 Controle de Entregas")
+        fe1, fe2, fe3 = st.columns(3)
+        with fe1:
+            f_busca_e = st.text_input("🔍 Buscar", key="filtro_busca_ent")
+        with fe2:
+            f_status_e = st.selectbox("Status", ["Todos"] + STATUS_ENTREGA, key="filtro_status_ent")
+        with fe3:
+            f_loja_e = st.selectbox("Loja", ["Todas"] + lista_lojas_compras(dados_c), key="filtro_loja_ent")
+
+        df_e_filt = df_ent.copy()
+        if f_busca_e.strip():
+            mask_e = (
+                df_e_filt["ID_Solicitacao"].astype(str).str.contains(f_busca_e.strip(), case=False, na=False) |
+                df_e_filt["Loja"].astype(str).str.contains(f_busca_e.strip(), case=False, na=False) |
+                df_e_filt["Transportadora"].astype(str).str.contains(f_busca_e.strip(), case=False, na=False)
+            )
+            df_e_filt = df_e_filt[mask_e]
+        if f_status_e != "Todos":
+            df_e_filt = df_e_filt[df_e_filt["Status"].astype(str).str.strip() == f_status_e]
+        if f_loja_e != "Todas":
+            df_e_filt = df_e_filt[df_e_filt["Loja"].astype(str).str.strip() == f_loja_e]
+
+        st.markdown(f"**📊 Total: {len(df_e_filt)} entrega(s) encontrada(s)**")
+
+        if df_e_filt.empty:
+            st.info("ℹ️ Nenhuma entrega encontrada.")
+        else:
+            col_cfg_e = {
+                "ID_Solicitacao": st.column_config.TextColumn("ID Solicitação", disabled=True),
+                "Loja": st.column_config.TextColumn("Loja"),
+                "Tipo": st.column_config.TextColumn("Tipo"),
+                "DataEnvio": st.column_config.TextColumn("Data Envio"),
+                "DataPrevista": st.column_config.TextColumn("Data Prevista"),
+                "DataEntrega": st.column_config.TextColumn("Data Entrega"),
+                "Transportadora": st.column_config.TextColumn("Transportadora"),
+                "Rastreio": st.column_config.TextColumn("Rastreio"),
+                "Status": st.column_config.SelectboxColumn("Status", options=STATUS_ENTREGA),
+                "Observacoes": st.column_config.TextColumn("Observações"),
+            }
+            idx_orig_e = df_e_filt.index.tolist()
+            df_e_edit = df_e_filt.reset_index(drop=True)
+            edited_e = st.data_editor(df_e_edit, column_config=col_cfg_e, use_container_width=True, hide_index=True, num_rows="dynamic", key="editor_entregas")
+
+            col_se, col_ee = st.columns([1, 1])
+            with col_se:
+                if st.button("💾 SALVAR ALTERAÇÕES", type="primary", key="salvar_entregas_btn"):
+                    df_e_main = dados_c["Entregas"].copy()
+                    for i, idx_orig in enumerate(idx_orig_e):
+                        if i < len(edited_e):
+                            for col in df_e_main.columns:
+                                if col in edited_e.columns:
+                                    df_e_main.at[idx_orig, col] = str(edited_e.iloc[i][col])
+                    if len(edited_e) > len(idx_orig_e):
+                        for i in range(len(idx_orig_e), len(edited_e)):
+                            nova_linha = {col: "" for col in df_e_main.columns}
+                            for col in edited_e.columns:
+                                nova_linha[col] = str(edited_e.iloc[i][col])
+                            df_e_main = pd.concat([df_e_main, pd.DataFrame([nova_linha])], ignore_index=True)
+                    if len(edited_e) < len(idx_orig_e):
+                        remover = idx_orig_e[len(edited_e):]
+                        df_e_main.drop(index=remover, inplace=True)
+                        df_e_main.reset_index(drop=True, inplace=True)
+                    dados_c["Entregas"] = df_e_main
+                    # Sincroniza status com solicitações
+                    df_s_main = dados_c["Solicitacoes"].copy()
+                    for _, row_e in df_e_main.iterrows():
+                        id_s = str(row_e["ID_Solicitacao"]).strip()
+                        status_e = str(row_e["Status"]).strip()
+                        mask_s = df_s_main["ID"].astype(str).str.strip() == id_s
+                        if status_e == "Entregue":
+                            df_s_main.loc[mask_s, "Status"] = "Entregue"
+                        elif status_e == "Em Trânsito":
+                            df_s_main.loc[mask_s, "Status"] = "Em Trânsito"
+                        elif status_e == "Enviado":
+                            df_s_main.loc[mask_s, "Status"] = "Em Trânsito"
+                    dados_c["Solicitacoes"] = df_s_main
+                    salvar_compras(dados_c)
+                    st.success("✅ Alterações salvas com sucesso!")
+                    st.rerun()
+            with col_ee:
+                st.markdown("**🗑️ Para excluir:** delete as linhas na tabela e clique em SALVAR ALTERAÇÕES.")
+
+    # ---------- MATERIAIS ----------
+    with sub_aba_mat:
+        st.markdown("### 📑 Catálogo de Materiais")
+        fm1, fm2 = st.columns([3, 1])
+        with fm1:
+            f_busca_m = st.text_input("🔍 Buscar material", key="filtro_busca_mat")
+        with fm2:
+            f_cli_m = st.selectbox("Cliente", ["Todos"] + lista_clientes_compras(dados_c), key="filtro_cli_mat")
+
+        df_m_filt = df_mat.copy()
+        if f_busca_m.strip():
+            df_m_filt = df_m_filt[df_m_filt["Nome"].astype(str).str.contains(f_busca_m.strip(), case=False, na=False)]
+        if f_cli_m != "Todos":
+            df_m_filt = df_m_filt[df_m_filt["Cliente"].astype(str).str.strip() == f_cli_m]
+
+        st.markdown(f"**📊 {len(df_m_filt)} material(is) encontrado(s)**")
+
+        col_cfg_m = {
+            "ID": st.column_config.TextColumn("ID", disabled=True),
+            "Nome": st.column_config.TextColumn("Nome"),
+            "Cliente": st.column_config.SelectboxColumn("Cliente", options=lista_clientes_compras(dados_c)),
+            "Categoria": st.column_config.TextColumn("Categoria"),
+        }
+        idx_orig_m = df_m_filt.index.tolist()
+        df_m_edit = df_m_filt.reset_index(drop=True)
+        edited_m = st.data_editor(df_m_edit, column_config=col_cfg_m, use_container_width=True, hide_index=True, num_rows="dynamic", key="editor_materiais")
+
+        col_sm, col_nm = st.columns([1, 1])
+        with col_sm:
+            if st.button("💾 SALVAR ALTERAÇÕES", type="primary", key="salvar_materiais_btn"):
+                df_m_main = dados_c["Materiais"].copy()
+                for i, idx_orig in enumerate(idx_orig_m):
+                    if i < len(edited_m):
+                        for col in df_m_main.columns:
+                            if col in edited_m.columns:
+                                df_m_main.at[idx_orig, col] = str(edited_m.iloc[i][col])
+                if len(edited_m) > len(idx_orig_m):
+                    for i in range(len(idx_orig_m), len(edited_m)):
+                        nova_linha = {col: "" for col in df_m_main.columns}
+                        for col in edited_m.columns:
+                            nova_linha[col] = str(edited_m.iloc[i][col])
+                        novo_id = gerar_id_material(df_m_main)
+                        nova_linha["ID"] = novo_id
+                        df_m_main = pd.concat([df_m_main, pd.DataFrame([nova_linha])], ignore_index=True)
+                if len(edited_m) < len(idx_orig_m):
+                    remover = idx_orig_m[len(edited_m):]
+                    df_m_main.drop(index=remover, inplace=True)
+                    df_m_main.reset_index(drop=True, inplace=True)
+                dados_c["Materiais"] = df_m_main
+                salvar_compras(dados_c)
+                st.success("✅ Alterações salvas com sucesso!")
+                st.rerun()
+        with col_nm:
+            st.markdown("**🗑️ Para excluir:** delete as linhas na tabela e clique em SALVAR ALTERAÇÕES.")
+
+    # ---------- LOJAS E CLIENTES ----------
+    with sub_aba_lojas:
+        st.markdown("### 🏪 Lojas e Clientes")
+        col_lc1, col_lc2 = st.columns(2)
+        with col_lc1:
+            st.markdown("#### 👤 Clientes")
+            col_cfg_cli = {"Nome": st.column_config.TextColumn("Nome")}
+            idx_orig_cli = df_cli_c.index.tolist()
+            df_cli_edit = df_cli_c.reset_index(drop=True)
+            edited_cli = st.data_editor(df_cli_edit, column_config=col_cfg_cli, use_container_width=True, hide_index=True, num_rows="dynamic", key="editor_clientes")
+            if st.button("💾 Salvar Clientes", type="primary", key="salvar_clientes_btn"):
+                df_cli_main = df_cli_c.copy()
+                for i, idx_orig in enumerate(idx_orig_cli):
+                    if i < len(edited_cli):
+                        for col in df_cli_main.columns:
+                            if col in edited_cli.columns:
+                                df_cli_main.at[idx_orig, col] = str(edited_cli.iloc[i][col])
+                if len(edited_cli) > len(idx_orig_cli):
+                    for i in range(len(idx_orig_cli), len(edited_cli)):
+                        nova_linha = {col: "" for col in df_cli_main.columns}
+                        for col in edited_cli.columns:
+                            nova_linha[col] = str(edited_cli.iloc[i][col])
+                        df_cli_main = pd.concat([df_cli_main, pd.DataFrame([nova_linha])], ignore_index=True)
+                if len(edited_cli) < len(idx_orig_cli):
+                    remover = idx_orig_cli[len(edited_cli):]
+                    df_cli_main.drop(index=remover, inplace=True)
+                    df_cli_main.reset_index(drop=True, inplace=True)
+                dados_c["Clientes_Compras"] = df_cli_main
+                salvar_compras(dados_c)
+                st.success("✅ Clientes salvos!")
+                st.rerun()
+
+        with col_lc2:
+            st.markdown("#### 🏪 Lojas")
+            col_cfg_lj = {
+                "ID": st.column_config.TextColumn("ID", disabled=True),
+                "Nome": st.column_config.TextColumn("Nome"),
+                "Cliente": st.column_config.SelectboxColumn("Cliente", options=lista_clientes_compras(dados_c)),
+            }
+            idx_orig_lj = df_loja_c.index.tolist()
+            df_lj_edit = df_loja_c.reset_index(drop=True)
+            edited_lj = st.data_editor(df_lj_edit, column_config=col_cfg_lj, use_container_width=True, hide_index=True, num_rows="dynamic", key="editor_lojas_c")
+            if st.button("💾 Salvar Lojas", type="primary", key="salvar_lojas_c_btn"):
+                df_lj_main = df_loja_c.copy()
+                for i, idx_orig in enumerate(idx_orig_lj):
+                    if i < len(edited_lj):
+                        for col in df_lj_main.columns:
+                            if col in edited_lj.columns:
+                                df_lj_main.at[idx_orig, col] = str(edited_lj.iloc[i][col])
+                if len(edited_lj) > len(idx_orig_lj):
+                    for i in range(len(idx_orig_lj), len(edited_lj)):
+                        nova_linha = {col: "" for col in df_lj_main.columns}
+                        for col in edited_lj.columns:
+                            nova_linha[col] = str(edited_lj.iloc[i][col])
+                        novo_id = gerar_id_loja_c(df_lj_main)
+                        nova_linha["ID"] = novo_id
+                        df_lj_main = pd.concat([df_lj_main, pd.DataFrame([nova_linha])], ignore_index=True)
+                if len(edited_lj) < len(idx_orig_lj):
+                    remover = idx_orig_lj[len(edited_lj):]
+                    df_lj_main.drop(index=remover, inplace=True)
+                    df_lj_main.reset_index(drop=True, inplace=True)
+                dados_c["Lojas_Compras"] = df_lj_main
+                salvar_compras(dados_c)
+                st.success("✅ Lojas salvas!")
+                st.rerun()
+
+    # ---------- RELATÓRIOS ----------
+    with sub_aba_rel:
+        st.markdown("### 📥 Relatórios e Exportações")
+        st.markdown("---")
+        st.markdown("#### 📋 Exportar Solicitações")
+        col_r1, col_r2 = st.columns(2)
+        with col_r1:
+            if st.button("📥 Exportar Solicitações para Excel", type="primary", key="exp_solic_xlsx"):
+                buffer = io.BytesIO()
+                with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+                    df_solic_exp = df_solic.copy()
+                    # Expandir itens para melhor leitura
+                    rows_exp = []
+                    for _, row in df_solic_exp.iterrows():
+                        try:
+                            itens = json.loads(row["ItensJSON"]) if row["ItensJSON"] else []
+                        except:
+                            itens = []
+                        if not itens:
+                            rows_exp.append(row.to_dict())
+                        else:
+                            for it in itens:
+                                d = row.to_dict()
+                                if row["Tipo"] == "Material":
+                                    d["Item_Material"] = it.get("material", "")
+                                    d["Item_Qtd"] = it.get("qtd", "")
+                                    d["Item_Valor"] = it.get("valor", "")
+                                else:
+                                    d["Item_EPI"] = it.get("epi", "")
+                                    d["Item_Colaborador"] = it.get("colaborador", "")
+                                    d["Item_Qtd"] = it.get("qtd", "")
+                                    d["Item_Tamanho"] = it.get("tamanho", "")
+                                rows_exp.append(d)
+                    df_exp = pd.DataFrame(rows_exp)
+                    if "ItensJSON" in df_exp.columns:
+                        df_exp.drop(columns=["ItensJSON"], inplace=True, errors="ignore")
+                    df_exp.to_excel(writer, sheet_name="Solicitacoes", index=False)
+                    df_ent.to_excel(writer, sheet_name="Entregas", index=False)
+                    df_mat.to_excel(writer, sheet_name="Materiais", index=False)
+                st.download_button("⬇️ Baixar Excel", buffer.getvalue(), file_name=f"Relatorio_Compras_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key="dl_rel_xlsx")
+        with col_r2:
+            if st.button("📥 Exportar Solicitações para CSV", key="exp_solic_csv"):
+                csv = df_solic.to_csv(index=False, sep=";", encoding="utf-8-sig")
+                st.download_button("⬇️ Baixar CSV", csv.encode("utf-8-sig"), file_name=f"Solicitacoes_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv", mime="text/csv", key="dl_rel_csv")
+
+        st.markdown("---")
+        st.markdown("#### 📊 Relatório Personalizado")
+        rp1, rp2, rp3 = st.columns(3)
+        with rp1:
+            rel_di = st.text_input("Data Início (DD/MM/AAAA)", key="rel_di")
+            rel_df = st.text_input("Data Fim (DD/MM/AAAA)", key="rel_df")
+        with rp2:
+            rel_cli = st.selectbox("Cliente", ["Todos"] + lista_clientes_compras(dados_c), key="rel_cli")
+            rel_loja = st.selectbox("Loja", ["Todas"] + lista_lojas_compras(dados_c, rel_cli if rel_cli != "Todos" else None), key="rel_loja")
+        with rp3:
+            rel_status = st.selectbox("Status", ["Todos"] + STATUS_SOLICITACAO, key="rel_status")
+            rel_tipo = st.selectbox("Tipo", ["Todos"] + TIPOS_SOLICITACAO, key="rel_tipo")
+
+        if st.button("📊 Gerar Relatório Filtrado", type="primary", key="gerar_rel"):
+            df_rel = df_solic.copy()
+            if rel_di.strip():
+                try:
+                    dti = datetime.strptime(rel_di.strip(), "%d/%m/%Y")
+                    df_rel["_dt"] = pd.to_datetime(df_rel["Data"].astype(str).str.strip(), format="%d/%m/%Y", errors="coerce")
+                    df_rel = df_rel[df_rel["_dt"] >= dti]
+                    df_rel.drop(columns=["_dt"], inplace=True, errors="ignore")
+                except Exception:
+                    pass
+            if rel_df.strip():
+                try:
+                    dtf = datetime.strptime(rel_df.strip(), "%d/%m/%Y")
+                    df_rel["_dt"] = pd.to_datetime(df_rel["Data"].astype(str).str.strip(), format="%d/%m/%Y", errors="coerce")
+                    df_rel = df_rel[df_rel["_dt"] <= dtf]
+                    df_rel.drop(columns=["_dt"], inplace=True, errors="ignore")
+                except Exception:
+                    pass
+            if rel_cli != "Todos":
+                df_rel = df_rel[df_rel["Cliente"].astype(str).str.strip() == rel_cli]
+            if rel_loja != "Todas":
+                df_rel = df_rel[df_rel["Loja"].astype(str).str.strip() == rel_loja]
+            if rel_status != "Todos":
+                df_rel = df_rel[df_rel["Status"].astype(str).str.strip() == rel_status]
+            if rel_tipo != "Todos":
+                df_rel = df_rel[df_rel["Tipo"].astype(str).str.strip() == rel_tipo]
+
+            st.markdown(f"**📊 {len(df_rel)} resultado(s)**")
+            if not df_rel.empty:
+                st.dataframe(df_rel, use_container_width=True, hide_index=True)
+                csv_rel = df_rel.to_csv(index=False, sep=";", encoding="utf-8-sig")
+                st.download_button("⬇️ Baixar Relatório CSV", csv_rel.encode("utf-8-sig"), file_name=f"Relatorio_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv", mime="text/csv", key="dl_rel_filtro")
+            else:
+                st.info("ℹ️ Nenhum resultado para os filtros selecionados.")
+
+    # ---------- TRADUTOR ----------
+    with sub_aba_tradutor:
+        st.markdown("### 🌐 Tradutor")
+        st.markdown("Use o tradutor abaixo para traduzir textos rapidamente.")
+        st.markdown("---")
+        col_tr1, col_tr2 = st.columns(2)
+        with col_tr1:
+            texto_origem = st.text_area("Texto para traduzir", height=200, key="tr_texto")
+        with col_tr2:
+            idioma_destino = st.selectbox("Idioma de destino", ["Inglês", "Espanhol", "Francês", "Italiano", "Alemão", "Japonês", "Chinês (Simplificado)", "Português"], key="tr_idioma")
+            mapa_idiomas = {
+                "Inglês": "en", "Espanhol": "es", "Francês": "fr", "Italiano": "it",
+                "Alemão": "de", "Japonês": "ja", "Chinês (Simplificado)": "zh-CN", "Português": "pt"
+            }
+            lang = mapa_idiomas.get(idioma_destino, "en")
+            st.markdown("**Resultado:**")
+            if texto_origem.strip():
+                texto_url = texto_origem.replace('\n', '%0A').replace(' ', '%20')
+                iframe_html = f'<iframe src="https://translate.google.com/?sl=auto&tl={lang}&text={texto_url}&op=translate" width="100%" height="200" style="border:1px solid #ddd;border-radius:8px;"></iframe>'
+                st.components.v1.html(iframe_html, height=220)
+            else:
+                st.info("Digite um texto à esquerda para ver a tradução.")
+        st.markdown("---")
+        st.caption("💡 Dica: você também pode usar o tradutor global no canto superior direito da página.")
