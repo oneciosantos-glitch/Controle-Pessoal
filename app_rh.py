@@ -2943,12 +2943,30 @@ with aba11:
     # ---------- SUB-ABA 2: TEXTO → ÁUDIO (TTS) ----------
     with sub_aba_tts:
         st.markdown("### 🔊 Texto para Áudio (TTS)")
-        st.caption("Converta texto em fala e ouça ou baixe o áudio gerado.")
+        st.caption("Converta texto em fala. Você pode traduzir o texto antes de gerar o áudio.")
 
-        idioma_tts = st.selectbox("Idioma do Texto / Áudio", list(IDIOMAS.keys()), index=0, key="tts_idioma")
-        texto_tts = st.text_area("✍️ Digite o texto para converter em áudio", height=150, key="tts_texto")
+        # Inicializa histórico de TTS
+        if "tts_historico" not in st.session_state:
+            st.session_state["tts_historico"] = []
 
-        if st.button("🔊 GERAR ÁUDIO", type="primary", use_container_width=True):
+        c1, c2 = st.columns(2)
+        with c1:
+            idioma_origem_tts = st.selectbox("Idioma do Texto (Origem)", ["Auto-detectar"] + list(IDIOMAS.keys()), key="tts_idioma_origem")
+        with c2:
+            idioma_destino_tts = st.selectbox("Idioma do Áudio (Destino)", list(IDIOMAS.keys()), index=0, key="tts_idioma_destino")
+
+        traduzir_antes = st.checkbox("🔄 Traduzir o texto antes de gerar o áudio", value=True, key="tts_traduzir_antes")
+        texto_tts = st.text_area("✍️ Digite o texto", height=150, key="tts_texto")
+
+        col_gerar, col_limpar = st.columns(2)
+        with col_gerar:
+            gerar_audio = st.button("🔊 GERAR ÁUDIO", type="primary", use_container_width=True, key="tts_btn_gerar")
+        with col_limpar:
+            if st.button("🗑️ Limpar Histórico de Áudio", use_container_width=True, key="tts_btn_limpar"):
+                st.session_state["tts_historico"] = []
+                st.rerun()
+
+        if gerar_audio:
             if not texto_tts.strip():
                 st.warning("⚠️ Digite um texto para converter.")
             else:
@@ -2958,21 +2976,67 @@ with aba11:
                     st.error("❌ A biblioteca `gTTS` não está instalada. Execute: `pip install gtts`")
                     st.stop()
 
-                with st.spinner("Gerando áudio..."):
-                    cod_tts = IDIOMAS.get(idioma_tts, "pt")
-                    tts = gTTS(text=texto_tts, lang=cod_tts, slow=False)
-                    mp3_buffer = io.BytesIO()
-                    tts.write_to_fp(mp3_buffer)
-                    mp3_buffer.seek(0)
+                texto_final = texto_tts
+                cod_tts = IDIOMAS.get(idioma_destino_tts, "pt")
 
-                st.success("✅ Áudio gerado com sucesso!")
-                st.audio(mp3_buffer, format="audio/mp3")
-                st.download_button(
-                    label="📥 Baixar Áudio (.mp3)",
-                    data=mp3_buffer.getvalue(),
-                    file_name=f"audio_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp3",
-                    mime="audio/mpeg",
-                )
+                # Traduzir se necessário
+                if traduzir_antes:
+                    with st.spinner("Traduzindo texto..."):
+                        cod_origem = "auto" if idioma_origem_tts == "Auto-detectar" else IDIOMAS.get(idioma_origem_tts, "auto")
+                        texto_traduzido = traduzir_texto(texto_tts, origem=cod_origem, destino=cod_tts)
+                    if texto_traduzido:
+                        texto_final = texto_traduzido
+                        st.success(f"✅ Texto traduzido de {idioma_origem_tts} para {idioma_destino_tts}")
+                        st.text_area("Texto que será convertido em áudio", value=texto_final, height=100, disabled=True, key="tts_texto_convertido")
+                    else:
+                        st.warning("⚠️ Não foi possível traduzir. Usando texto original.")
+                        texto_final = texto_tts
+
+                with st.spinner("Gerando áudio..."):
+                    try:
+                        tts = gTTS(text=texto_final, lang=cod_tts, slow=False)
+                        mp3_buffer = io.BytesIO()
+                        tts.write_to_fp(mp3_buffer)
+                        mp3_buffer.seek(0)
+                        st.success("✅ Áudio gerado com sucesso!")
+                        st.audio(mp3_buffer, format="audio/mp3")
+                        st.download_button(
+                            label="📥 Baixar Áudio (.mp3)",
+                            data=mp3_buffer.getvalue(),
+                            file_name=f"audio_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp3",
+                            mime="audio/mpeg",
+                            key="tts_download_audio"
+                        )
+                        # Adiciona ao histórico
+                        st.session_state["tts_historico"].append({
+                            "timestamp": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+                            "idioma_origem": idioma_origem_tts,
+                            "idioma_destino": idioma_destino_tts,
+                            "texto_original": texto_tts,
+                            "texto_convertido": texto_final,
+                            "audio_bytes": mp3_buffer.getvalue(),
+                        })
+                    except Exception as e_gtts:
+                        st.error(f"❌ Erro ao gerar áudio com gTTS.")
+                        st.info("ℹ️ O serviço Google TTS pode estar indisponível temporariamente ou o idioma selecionado pode não ser suportado no momento. Tente outro idioma ou tente novamente mais tarde.")
+
+        # Exibe histórico de áudio gerado
+        if st.session_state["tts_historico"]:
+            st.markdown("---")
+            st.markdown("### 📚 Histórico de Áudios Gerados")
+            for i, item in enumerate(reversed(st.session_state["tts_historico"])):
+                idx_real = len(st.session_state["tts_historico"]) - 1 - i
+                with st.container(border=True):
+                    st.caption(f"🕐 {item['timestamp']} | {item['idioma_origem']} → {item['idioma_destino']}")
+                    st.text_area("Texto convertido", value=item["texto_convertido"], height=80, disabled=True, key=f"tts_hist_texto_{idx_real}")
+                    st.audio(io.BytesIO(item["audio_bytes"]), format="audio/mp3")
+                    st.download_button(
+                        label="📥 Baixar Áudio",
+                        data=item["audio_bytes"],
+                        file_name=f"audio_{item['timestamp'].replace('/', '').replace(' ', '_').replace(':', '')}.mp3",
+                        mime="audio/mpeg",
+                        key=f"tts_hist_down_{idx_real}",
+                    )
 
     # ---------- SUB-ABA 3: ÁUDIO → TEXTO (STT) + CORREÇÃO + TTS ----------
     with sub_aba_stt:
@@ -3178,19 +3242,22 @@ with aba11:
                                     if not cod_tts or cod_tts not in suportados:
                                         cod_tts = "pt"
                                         st.info("ℹ️ Idioma não suportado para áudio. Usando Português.")
-                                    tts = gTTS(text=texto_ouvir, lang=cod_tts, slow=False)
-                                    mp3_buffer = io.BytesIO()
-                                    tts.write_to_fp(mp3_buffer)
-                                    mp3_buffer.seek(0)
-                                st.success("✅ Áudio gerado!")
-                                st.audio(mp3_buffer, format="audio/mp3")
-                                st.download_button(
-                                    label="📥 Baixar Áudio",
-                                    data=mp3_buffer.getvalue(),
-                                    file_name=f"traducao_audio_{item['timestamp'].replace('/', '').replace(' ', '_').replace(':', '')}.mp3",
-                                    mime="audio/mpeg",
-                                    key=f"stt_down_audio_{idx}"
-                                )
+                                    try:
+                                        tts = gTTS(text=texto_ouvir, lang=cod_tts, slow=False)
+                                        mp3_buffer = io.BytesIO()
+                                        tts.write_to_fp(mp3_buffer)
+                                        mp3_buffer.seek(0)
+                                        st.success("✅ Áudio gerado!")
+                                        st.audio(mp3_buffer, format="audio/mp3")
+                                        st.download_button(
+                                            label="📥 Baixar Áudio",
+                                            data=mp3_buffer.getvalue(),
+                                            file_name=f"traducao_audio_{item['timestamp'].replace('/', '').replace(' ', '_').replace(':', '')}.mp3",
+                                            mime="audio/mpeg",
+                                            key=f"stt_down_audio_{idx}"
+                                        )
+                                    except Exception as e_gtts:
+                                        st.error(f"❌ Erro ao gerar áudio com gTTS: {e_gtts}")
                     with col_b2:
                         if st.button("💾 Salvar Correção", use_container_width=True, key=f"stt_salvar_{idx}"):
                             item["texto_traduzido"] = texto_editado
