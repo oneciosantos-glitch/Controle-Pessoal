@@ -43,13 +43,16 @@ except Exception:
     pass
 
 # ====================== CONFIGURAÇÕES GERAIS ======================
-ARQUIVO = "dados_funcionarios.xlsx"
-ARQUIVO_DIARIAS = "controle_diarias.xlsx"
-ARQUIVO_VIAGENS = "registro_viagens.xlsx"
-PASTA_DOCS = "Documentos_Lojas"
-PASTA_DOCS_FUNC = "Documentos_Funcionarios"
-PASTA_FOTOS = "Fotos_Funcionarios"
-PASTA_COMPROVANTES = "Comprovantes_Diarias"
+# Diretório base fixo onde o script está (garante persistência entre reinícios)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+ARQUIVO = os.path.join(BASE_DIR, "dados_funcionarios.xlsx")
+ARQUIVO_DIARIAS = os.path.join(BASE_DIR, "controle_diarias.xlsx")
+ARQUIVO_VIAGENS = os.path.join(BASE_DIR, "registro_viagens.xlsx")
+PASTA_DOCS = os.path.join(BASE_DIR, "Documentos_Lojas")
+PASTA_DOCS_FUNC = os.path.join(BASE_DIR, "Documentos_Funcionarios")
+PASTA_FOTOS = os.path.join(BASE_DIR, "Fotos_Funcionarios")
+PASTA_COMPROVANTES = os.path.join(BASE_DIR, "Comprovantes_Diarias")
 os.makedirs(PASTA_DOCS, exist_ok=True)
 os.makedirs(PASTA_DOCS_FUNC, exist_ok=True)
 os.makedirs(PASTA_FOTOS, exist_ok=True)
@@ -561,17 +564,17 @@ def criar_backup_zip():
     """Cria um arquivo ZIP em memória com todos os dados e anexos."""
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-        # Arquivos Excel principais
+        # Arquivos Excel principais (nome relativo no ZIP)
         for arq in [ARQUIVO, ARQUIVO_DIARIAS, ARQUIVO_VIAGENS]:
             if os.path.exists(arq):
-                zf.write(arq, arq)
-        # Pastas de documentos, fotos e comprovantes
+                zf.write(arq, os.path.basename(arq))
+        # Pastas de documentos, fotos e comprovantes (caminho relativo ao BASE_DIR)
         for pasta in [PASTA_DOCS, PASTA_DOCS_FUNC, PASTA_FOTOS, PASTA_COMPROVANTES]:
             if os.path.exists(pasta):
                 for root, dirs, files in os.walk(pasta):
                     for file in files:
                         caminho_completo = os.path.join(root, file)
-                        caminho_zip = os.path.relpath(caminho_completo, start=".")
+                        caminho_zip = os.path.relpath(caminho_completo, start=BASE_DIR)
                         zf.write(caminho_completo, caminho_zip)
     zip_buffer.seek(0)
     return zip_buffer
@@ -584,7 +587,11 @@ def restaurar_backup_zip(zip_file):
             # Ignora arquivos de sistema do Mac/Windows
             if item.startswith("__MACOSX") or item.startswith("."):
                 continue
-            zf.extract(item, ".")
+            # Garante que a pasta de destino exista dentro do BASE_DIR
+            destino = os.path.join(BASE_DIR, item)
+            os.makedirs(os.path.dirname(destino), exist_ok=True)
+            with open(destino, "wb") as f_out:
+                f_out.write(zf.read(item))
             arquivos_extraidos.append(item)
     return arquivos_extraidos
 
@@ -706,7 +713,7 @@ def add_historico_auto(mat, nome, acao, dados_completos):
 
 def gerar_ficha_individual(fd, fh, mr):
     """Gera arquivo Excel da ficha individual usando openpyxl diretamente para evitar colunas duplicadas."""
-    nome_arq = f"Rel_{mr}_ficha.xlsx"
+    nome_arq = os.path.join(BASE_DIR, f"Rel_{mr}_ficha.xlsx")
     
     # Garante que usamos apenas colunas padrão na ordem correta
     colunas_dados = [
@@ -1485,7 +1492,7 @@ with aba5:
             elif st.button("GERAR"):
                 nome_arq = gerar_ficha_individual(fd, fh, mr.strip())
                 with open(nome_arq, "rb") as f:
-                    st.download_button("⬇️ BAIXAR", f, file_name=nome_arq)
+                    st.download_button("⬇️ BAIXAR", f, file_name=os.path.basename(nome_arq))
                 os.remove(nome_arq)
     elif st.button("GERAR E BAIXAR"):
         if rel == "Prazos Experiência": df = pd.DataFrame(tabela_exp, columns=["Matrícula","Nome","Loja","Prazo","Dias Restantes"])
@@ -1505,9 +1512,10 @@ with aba5:
         elif rel == "Acidente": df = dados["Base_Dados"][dados["Base_Dados"]["Situacao"] == "Acidente"]
         elif rel == "Maternidade": df = dados["Base_Dados"][dados["Base_Dados"]["Situacao"] == "Maternidade"]
         else: df = dados["Historico"]
-        with pd.ExcelWriter("rel_temp.xlsx") as arq: df.to_excel(arq, index=False, sheet_name=rel)
-        with open("rel_temp.xlsx","rb") as f: st.download_button("⬇️ BAIXAR", f, file_name=f"Rel_{rel.replace(' ','_')}.xlsx")
-        os.remove("rel_temp.xlsx")
+        temp_rel = os.path.join(BASE_DIR, "rel_temp.xlsx")
+        with pd.ExcelWriter(temp_rel) as arq: df.to_excel(arq, index=False, sheet_name=rel)
+        with open(temp_rel,"rb") as f: st.download_button("⬇️ BAIXAR", f, file_name=f"Rel_{rel.replace(' ','_')}.xlsx")
+        os.remove(temp_rel)
 
 # ================ ABA 6 - DOCUMENTOS DAS LOJAS ================
 with aba6:
@@ -1931,10 +1939,10 @@ with aba8:
     st.markdown("---")
     st.subheader("📤 EXPORTAR PARA EXCEL")
     if not df_filtrado.empty:
-        nome_arq = f"Diarias_{filtro_loja_d}_{filtro_mes_d}_{filtro_ano_d}.xlsx".replace("/", "-").replace(" ", "_")
+        nome_arq = os.path.join(BASE_DIR, f"Diarias_{filtro_loja_d}_{filtro_mes_d}_{filtro_ano_d}.xlsx".replace("/", "-").replace(" ", "_"))
         exportar_diarias_formatado(df_filtrado, nome_arq)
         with open(nome_arq, "rb") as f:
-            st.download_button("⬇️ BAIXAR EXCEL", f, file_name=nome_arq)
+            st.download_button("⬇️ BAIXAR EXCEL", f, file_name=os.path.basename(nome_arq))
         os.remove(nome_arq)
     else:
         st.info("Filtre os dados para exportar.")
