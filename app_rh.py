@@ -379,8 +379,8 @@ def salvar_dados(dados):
         with pd.ExcelWriter(ARQUIVO, engine="openpyxl", mode="w") as f:
             for aba, df in dados.items():
                 df.to_excel(f, sheet_name=aba, index=False)
-    except Exception:
-        pass
+    except Exception as e:
+        st.error(f"❌ Erro ao salvar arquivo local: {e}")
     
     # Se Google Sheets ativo, salva na nuvem também
     if GS_ENABLED:
@@ -696,8 +696,12 @@ def add_historico_auto(mat, nome, acao, dados_completos):
     registro = {"DataEvento": datetime.now().strftime("%d/%m/%Y"), "TipoEvento": acao, "Detalhes": ""}
     registro.update(dados_completos)
     idx = dados["Historico"].index[dados["Historico"]["Matricula"] == mat].tolist()
-    if idx: dados["Historico"].iloc[idx[0]] = registro
-    else: dados["Historico"] = pd.concat([dados["Historico"], pd.DataFrame([registro])], ignore_index=True)
+    if idx:
+        idx_linha = idx[0]
+        for coluna, valor in registro.items():
+            dados["Historico"].at[idx_linha, coluna] = valor
+    else:
+        dados["Historico"] = pd.concat([dados["Historico"], pd.DataFrame([registro])], ignore_index=True)
     salvar_dados(dados)
 
 def gerar_ficha_individual(fd, fh, mr):
@@ -805,7 +809,9 @@ def verificar_retorno_ferias_automatico():
                     registro.update(rf.iloc[0].to_dict())
                 ih = dados["Historico"].index[dados["Historico"]["Matricula"] == alt["Matricula"]].tolist()
                 if ih:
-                    dados["Historico"].iloc[ih[0]] = registro
+                    idx_linha = ih[0]
+                    for coluna, valor in registro.items():
+                        dados["Historico"].at[idx_linha, coluna] = valor
                 else:
                     dados["Historico"] = pd.concat([dados["Historico"], pd.DataFrame([registro])], ignore_index=True)
             salvar_dados(dados)
@@ -854,7 +860,9 @@ def verificar_retorno_afastamentos_automatico():
                     registro.update(rf.iloc[0].to_dict())
                 ih = dados["Historico"].index[dados["Historico"]["Matricula"] == alt["Matricula"]].tolist()
                 if ih:
-                    dados["Historico"].iloc[ih[0]] = registro
+                    idx_linha = ih[0]
+                    for coluna, valor in registro.items():
+                        dados["Historico"].at[idx_linha, coluna] = valor
                 else:
                     dados["Historico"] = pd.concat([dados["Historico"], pd.DataFrame([registro])], ignore_index=True)
             salvar_dados(dados)
@@ -1183,8 +1191,12 @@ with aba1:
             }
             indice = dados["Base_Dados"].index[dados["Base_Dados"]["Matricula"] == dados_form["mat"]].tolist()
             acao_hist = "Atualização Cadastral" if indice else "Novo Cadastro"
-            if indice: dados["Base_Dados"].iloc[indice[0]] = registro_final
-            else: dados["Base_Dados"] = pd.concat([dados["Base_Dados"], pd.DataFrame([registro_final])], ignore_index=True)
+            if indice:
+                idx_linha = indice[0]
+                for coluna, valor in registro_final.items():
+                    dados["Base_Dados"].at[idx_linha, coluna] = valor
+            else:
+                dados["Base_Dados"] = pd.concat([dados["Base_Dados"], pd.DataFrame([registro_final])], ignore_index=True)
             salvar_dados(dados)
             add_historico_auto(dados_form["mat"], dados_form["nome"], acao_hist, registro_final)
             st.success(f"✅ Salvo! Matrícula: **{dados_form['mat']}**")
@@ -1415,8 +1427,12 @@ with aba4:
                 nr = {"DataEvento":de,"TipoEvento":te,"Detalhes":dee}
                 nr.update(rf.iloc[0].to_dict())
                 ih = dados["Historico"].index[dados["Historico"]["Matricula"] == matricula_hist.strip()].tolist()
-                if ih: dados["Historico"].iloc[ih[0]] = nr
-                else: dados["Historico"] = pd.concat([dados["Historico"], pd.DataFrame([nr])], ignore_index=True)
+                if ih:
+                    idx_linha = ih[0]
+                    for coluna, valor in nr.items():
+                        dados["Historico"].at[idx_linha, coluna] = valor
+                else:
+                    dados["Historico"] = pd.concat([dados["Historico"], pd.DataFrame([nr])], ignore_index=True)
                 salvar_dados(dados)
                 st.success("Adicionado!")
                 st.rerun()
