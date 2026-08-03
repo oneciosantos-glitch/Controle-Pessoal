@@ -1203,22 +1203,45 @@ with aba1:
             time.sleep(0.5)
             st.rerun()
 
-    if mat_sel.strip() and st.button("🗑️ EXCLUIR REGISTRO", use_container_width=True, type="secondary"):
-        if st.checkbox("⚠️ CONFIRMA EXCLUSÃO PERMANENTE?"):
-            indice = dados["Base_Dados"].index[dados["Base_Dados"]["Matricula"] == mat_sel.strip()].tolist()
-            if indice:
-                dados_excluir = dados["Base_Dados"].iloc[indice[0]].to_dict()
-                if dados_excluir.get("CaminhoFoto") and os.path.exists(dados_excluir["CaminhoFoto"]):
-                    os.remove(dados_excluir["CaminhoFoto"])
-                docs_excluir = dados["Docs_Funcionarios"][dados["Docs_Funcionarios"]["Matricula"] == mat_sel.strip()]
-                for _, d in docs_excluir.iterrows():
-                    if os.path.exists(d["Caminho"]): os.remove(d["Caminho"])
-                dados["Docs_Funcionarios"] = dados["Docs_Funcionarios"][dados["Docs_Funcionarios"]["Matricula"] != mat_sel.strip()]
-                dados["Base_Dados"].drop(indice[0], inplace=True)
-                salvar_dados(dados)
-                add_historico_auto(mat_sel.strip(), dados_excluir["Nome"], "Exclusão de Cadastro", dados_excluir)
-                st.success("✅ Registro, foto e documentos excluídos!")
-                st.rerun()
+    # ---------- EXCLUSÃO DE REGISTRO ----------
+    if mat_sel.strip():
+        if st.button("🗑️ EXCLUIR REGISTRO", use_container_width=True, type="secondary"):
+            st.session_state["confirmar_exclusao"] = True
+
+        if st.session_state.get("confirmar_exclusao"):
+            st.warning("⚠️ Esta ação não pode ser desfeita!")
+            confirma = st.checkbox("CONFIRMO QUE DESEJO EXCLUIR PERMANENTEMENTE", key="chk_confirma_exclusao")
+            c1, c2 = st.columns(2)
+            with c1:
+                if st.button("✅ SIM, EXCLUIR", type="primary", use_container_width=True):
+                    if confirma:
+                        indice = dados["Base_Dados"].index[dados["Base_Dados"]["Matricula"] == mat_sel.strip()].tolist()
+                        if indice:
+                            dados_excluir = dados["Base_Dados"].loc[indice[0]].to_dict()
+                            if dados_excluir.get("CaminhoFoto") and os.path.exists(dados_excluir["CaminhoFoto"]):
+                                os.remove(dados_excluir["CaminhoFoto"])
+                            docs_excluir = dados["Docs_Funcionarios"][dados["Docs_Funcionarios"]["Matricula"] == mat_sel.strip()]
+                            for _, d in docs_excluir.iterrows():
+                                if os.path.exists(d["Caminho"]): os.remove(d["Caminho"])
+                            dados["Docs_Funcionarios"] = dados["Docs_Funcionarios"][dados["Docs_Funcionarios"]["Matricula"] != mat_sel.strip()]
+                            dados["Base_Dados"] = dados["Base_Dados"].drop(indice[0])
+                            salvar_dados(dados)
+                            add_historico_auto(mat_sel.strip(), dados_excluir["Nome"], "Exclusão de Cadastro", dados_excluir)
+                            st.session_state["confirmar_exclusao"] = False
+                            if "chk_confirma_exclusao" in st.session_state:
+                                del st.session_state["chk_confirma_exclusao"]
+                            st.success("✅ Registro, foto e documentos excluídos!")
+                            st.rerun()
+                        else:
+                            st.error("❌ Registro não encontrado!")
+                    else:
+                        st.error("❌ Marque a caixa de confirmação para prosseguir.")
+            with c2:
+                if st.button("❌ CANCELAR", type="secondary", use_container_width=True):
+                    st.session_state["confirmar_exclusao"] = False
+                    if "chk_confirma_exclusao" in st.session_state:
+                        del st.session_state["chk_confirma_exclusao"]
+                    st.rerun()
 
     st.markdown("---")
     st.subheader("📎 DOCUMENTOS DO FUNCIONÁRIO")
