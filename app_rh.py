@@ -1056,7 +1056,7 @@ with aba1:
         if "autocomplete_func" in st.session_state:
             del st.session_state["autocomplete_func"]
         st.rerun()
-    with st.form("form_cadastro", clear_on_submit=True):
+    with st.form("form_cadastro", clear_on_submit=False):
         st.subheader("Dados Básicos")
         col_foto, col_dados = st.columns([1,3])
         
@@ -1143,65 +1143,69 @@ with aba1:
 
         btn_salvar = st.form_submit_button("💾 SALVAR CADASTRO", type="primary", use_container_width=True)
         if btn_salvar:
-            matricula_tratada = str(matricula).strip()
-            if not matricula_tratada:
-                st.error("❌ INFORME A MATRÍCULA!")
-                st.stop()
-            caminho_final_foto = caminho_foto_atual
-            if excluir_foto and caminho_final_foto and os.path.exists(caminho_final_foto):
-                os.remove(caminho_final_foto)
-                caminho_final_foto = ""
-            if nova_foto:
-                if caminho_final_foto and os.path.exists(caminho_final_foto):
+            try:
+                matricula_tratada = str(matricula).strip()
+                if not matricula_tratada:
+                    st.error("❌ INFORME A MATRÍCULA!")
+                    st.stop()
+                caminho_final_foto = caminho_foto_atual
+                if excluir_foto and caminho_final_foto and os.path.exists(caminho_final_foto):
                     os.remove(caminho_final_foto)
-                extensao = os.path.splitext(nova_foto.name)[1].lower()
-                nome_foto = f"{matricula_tratada}_foto_{datetime.now().strftime('%Y%m%d%H%M%S')}{extensao}"
-                caminho_final_foto = os.path.join(PASTA_FOTOS, nome_foto)
-                img = Image.open(nova_foto)
-                img.save(caminho_final_foto)
+                    caminho_final_foto = ""
+                if nova_foto:
+                    if caminho_final_foto and os.path.exists(caminho_final_foto):
+                        os.remove(caminho_final_foto)
+                    extensao = os.path.splitext(nova_foto.name)[1].lower()
+                    nome_foto = f"{matricula_tratada}_foto_{datetime.now().strftime('%Y%m%d%H%M%S')}{extensao}"
+                    caminho_final_foto = os.path.join(PASTA_FOTOS, nome_foto)
+                    img = Image.open(nova_foto)
+                    img.save(caminho_final_foto)
 
-            dados_form = calcular_e_atualizar({
-                "mat": matricula_tratada, "nome": nome, "cpf": cpf, "rg": rg, "pis": pis,
-                "nasc": nascimento, "adm": admissao, "tel": telefone, "end": endereco,
-                "loja": loja, "cargo": cargo, "sal": salario, "situacao": situacao,
-                "dt_aviso": dt_aviso, "dias_aviso": dias_aviso, "termino_aviso": term_aviso,
-                "dt_lic": dt_lic, "dias_lic": dias_lic, "termino_lic": term_lic,
-                "dt_fer": dt_fer, "dias_fer": dias_fer, "retorno_fer": ret_fer,
-                "dt_af": dt_af, "dias_af": dias_af, "retorno_af": ret_af, "tipo_af": tipo_af,
-                "dt_pedido": dt_ped, "dt_rescisao": dt_res, "dt_abandono": dt_aband,
-                "dt_desistencia": dt_desist, "dt_termino_cont": dt_termino_cont
-            })
-            registro_final = {
-                "Matricula": dados_form["mat"], "Nome": dados_form["nome"], "CPF": dados_form["cpf"],
-                "RG": dados_form["rg"], "PIS": dados_form["pis"], "Nascimento": dados_form["nasc"],
-                "Admissao": dados_form["adm"], "Telefone": dados_form["tel"], "Endereco": dados_form["end"],
-                "Loja": dados_form["loja"], "Cargo": dados_form["cargo"], "Salario": dados_form["sal"],
-                "Situacao": dados_form["situacao"], "DataAvisoPrevio": dados_form["dt_aviso"],
-                "DiasAvisoPrevio": dados_form["dias_aviso"], "DataTerminoAviso": dados_form["termino_aviso"],
-                "DataFeriasInicio": dados_form["dt_fer"], "DiasFerias": dados_form["dias_fer"],
-                "DataRetornoFerias": dados_form["retorno_fer"], "DataPedidoConta": dados_form["dt_pedido"],
-                "DataRescisao": dados_form["dt_rescisao"], "DataAbandono": dados_form["dt_abandono"],
-                "DataDesistencia": dados_form["dt_desistencia"],
-                "DataTerminoContrato": dados_form["dt_termino_cont"],
-                "DataLicenca": dados_form["dt_lic"], "DiasLicenca": dados_form["dias_lic"],
-                "DataTerminoLicenca": dados_form["termino_lic"],
-                "DataAfastamento": dados_form["dt_af"], "DiasAfastamento": dados_form["dias_af"],
-                "DataRetornoAfastamento": dados_form["retorno_af"],
-                "CaminhoFoto": caminho_final_foto
-            }
-            indice = dados["Base_Dados"].index[dados["Base_Dados"]["Matricula"] == dados_form["mat"]].tolist()
-            acao_hist = "Atualização Cadastral" if indice else "Novo Cadastro"
-            if indice:
-                idx_linha = indice[0]
-                for coluna, valor in registro_final.items():
-                    dados["Base_Dados"].at[idx_linha, coluna] = valor
-            else:
-                dados["Base_Dados"] = pd.concat([dados["Base_Dados"], pd.DataFrame([registro_final])], ignore_index=True)
-            salvar_dados(dados)
-            add_historico_auto(dados_form["mat"], dados_form["nome"], acao_hist, registro_final)
-            st.success(f"✅ Salvo! Matrícula: **{dados_form['mat']}**")
-            time.sleep(0.5)
-            st.rerun()
+                dados_form = calcular_e_atualizar({
+                    "mat": matricula_tratada, "nome": nome, "cpf": cpf, "rg": rg, "pis": pis,
+                    "nasc": nascimento, "adm": admissao, "tel": telefone, "end": endereco,
+                    "loja": loja, "cargo": cargo, "sal": salario, "situacao": situacao,
+                    "dt_aviso": dt_aviso, "dias_aviso": dias_aviso, "termino_aviso": term_aviso,
+                    "dt_lic": dt_lic, "dias_lic": dias_lic, "termino_lic": term_lic,
+                    "dt_fer": dt_fer, "dias_fer": dias_fer, "retorno_fer": ret_fer,
+                    "dt_af": dt_af, "dias_af": dias_af, "retorno_af": ret_af, "tipo_af": tipo_af,
+                    "dt_pedido": dt_ped, "dt_rescisao": dt_res, "dt_abandono": dt_aband,
+                    "dt_desistencia": dt_desist, "dt_termino_cont": dt_termino_cont
+                })
+                registro_final = {
+                    "Matricula": dados_form["mat"], "Nome": dados_form["nome"], "CPF": dados_form["cpf"],
+                    "RG": dados_form["rg"], "PIS": dados_form["pis"], "Nascimento": dados_form["nasc"],
+                    "Admissao": dados_form["adm"], "Telefone": dados_form["tel"], "Endereco": dados_form["end"],
+                    "Loja": dados_form["loja"], "Cargo": dados_form["cargo"], "Salario": dados_form["sal"],
+                    "Situacao": dados_form["situacao"], "DataAvisoPrevio": dados_form["dt_aviso"],
+                    "DiasAvisoPrevio": dados_form["dias_aviso"], "DataTerminoAviso": dados_form["termino_aviso"],
+                    "DataFeriasInicio": dados_form["dt_fer"], "DiasFerias": dados_form["dias_fer"],
+                    "DataRetornoFerias": dados_form["retorno_fer"], "DataPedidoConta": dados_form["dt_pedido"],
+                    "DataRescisao": dados_form["dt_rescisao"], "DataAbandono": dados_form["dt_abandono"],
+                    "DataDesistencia": dados_form["dt_desistencia"],
+                    "DataTerminoContrato": dados_form["dt_termino_cont"],
+                    "DataLicenca": dados_form["dt_lic"], "DiasLicenca": dados_form["dias_lic"],
+                    "DataTerminoLicenca": dados_form["termino_lic"],
+                    "DataAfastamento": dados_form["dt_af"], "DiasAfastamento": dados_form["dias_af"],
+                    "DataRetornoAfastamento": dados_form["retorno_af"],
+                    "CaminhoFoto": caminho_final_foto
+                }
+                indice = dados["Base_Dados"].index[dados["Base_Dados"]["Matricula"] == dados_form["mat"]].tolist()
+                acao_hist = "Atualização Cadastral" if indice else "Novo Cadastro"
+                if indice:
+                    idx_linha = indice[0]
+                    for coluna, valor in registro_final.items():
+                        dados["Base_Dados"].at[idx_linha, coluna] = valor
+                else:
+                    dados["Base_Dados"] = pd.concat([dados["Base_Dados"], pd.DataFrame([registro_final])], ignore_index=True)
+                salvar_dados(dados)
+                add_historico_auto(dados_form["mat"], dados_form["nome"], acao_hist, registro_final)
+                st.success(f"✅ Salvo! Matrícula: **{dados_form['mat']}**")
+                st.rerun()
+            except Exception as e:
+                st.error(f"❌ Erro ao salvar: {e}")
+                import traceback
+                st.code(traceback.format_exc())
 
     # ---------- EXCLUSÃO DE REGISTRO ----------
     if mat_sel.strip():
