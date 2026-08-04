@@ -494,9 +494,11 @@ def page_solicitacoes():
         with c4:
             fcliente = st.selectbox("Cliente", ["Todos"] + CLIENTES, key="sol_fcliente")
         with c5:
-            fdi = st.date_input("Data Início", value=None, key="sol_fdi")
+            fdi_txt = st.text_input("Data Início (DD/MM/AAAA)", value="", key="sol_fdi")
+            fdi = _parse_data_br(fdi_txt) if fdi_txt.strip() else None
         with c6:
-            fdf = st.date_input("Data Fim", value=None, key="sol_fdf")
+            fdf_txt = st.text_input("Data Fim (DD/MM/AAAA)", value="", key="sol_fdf")
+            fdf = _parse_data_br(fdf_txt) if fdf_txt.strip() else None
 
     filtradas = []
     for s in sols:
@@ -598,23 +600,23 @@ def page_nova_solicitacao():
         with c4:
             solicitante = st.text_input("Solicitante *", value=edit_sol.get("solicitante","") if edit_sol else "")
         with c5:
-            data_sol_val = None
+            data_sol_str = ""
             if edit_sol and edit_sol.get("data"):
-                try:
-                    data_sol_val = datetime.strptime(edit_sol["data"], "%Y-%m-%d").date()
-                except Exception:
-                    data_sol_val = datetime.strptime(_normalizar_data_iso(edit_sol["data"]), "%Y-%m-%d").date() if _normalizar_data_iso(edit_sol["data"]) else date.today()
-            data_sol = st.date_input("Data", value=data_sol_val if data_sol_val else date.today())
+                data_sol_str = _iso_para_br(edit_sol["data"])
+            if not data_sol_str:
+                data_sol_str = datetime.now().strftime("%d/%m/%Y")
+            data_sol_txt = st.text_input("Data (DD/MM/AAAA)", value=data_sol_str)
+            data_sol = _parse_data_br(data_sol_txt)
         with c6:
             prioridade = st.selectbox("Prioridade", PRIORIDADES, index=PRIORIDADES.index(edit_sol["prioridade"]) if edit_sol and edit_sol.get("prioridade") in PRIORIDADES else 0)
 
-        previsao_val = None
+        previsao_str = ""
         if edit_sol and edit_sol.get("previsao"):
-            try:
-                previsao_val = datetime.strptime(edit_sol["previsao"], "%Y-%m-%d").date()
-            except Exception:
-                previsao_val = datetime.strptime(_normalizar_data_iso(edit_sol["previsao"]), "%Y-%m-%d").date() if _normalizar_data_iso(edit_sol["previsao"]) else date.today()
-        previsao = st.date_input("Previsão de Entrega", value=previsao_val if previsao_val else date.today())
+            previsao_str = _iso_para_br(edit_sol["previsao"])
+        if not previsao_str:
+            previsao_str = (datetime.now() + timedelta(days=7)).strftime("%d/%m/%Y")
+        previsao_txt = st.text_input("Previsão de Entrega (DD/MM/AAAA)", value=previsao_str)
+        previsao = _parse_data_br(previsao_txt)
         observacoes = st.text_area("Observações", value=edit_sol.get("observacoes","") if edit_sol else "")
 
         # Campos específicos EPI
@@ -628,14 +630,11 @@ def page_nova_solicitacao():
                 encarregado = st.text_input("Encarregado", value=edit_sol.get("encarregado","") if edit_sol else "")
             with c9:
                 supervisor = st.text_input("Supervisor", value=edit_sol.get("supervisor","") if edit_sol else "")
-            data_bota_val = None
+            data_bota_str = ""
             if edit_sol and edit_sol.get("dataUltimaBota"):
-                try:
-                    data_bota_val = datetime.strptime(edit_sol["dataUltimaBota"], "%Y-%m-%d").date()
-                except Exception:
-                    norm = _normalizar_data_iso(edit_sol["dataUltimaBota"])
-                    data_bota_val = datetime.strptime(norm, "%Y-%m-%d").date() if norm else None
-            data_bota = st.date_input("Data Última Bota", value=data_bota_val)
+                data_bota_str = _iso_para_br(edit_sol["dataUltimaBota"])
+            data_bota_txt = st.text_input("Data Última Bota (DD/MM/AAAA)", value=data_bota_str)
+            data_bota = _parse_data_br(data_bota_txt) if data_bota_str else None
 
         st.markdown("---")
         submitted = st.form_submit_button("💾 Salvar Solicitação", type="primary")
@@ -906,22 +905,12 @@ def page_entregas():
                         ne_status = st.selectbox("Status", STATUS_OPCOES, index=STATUS_OPCOES.index(e.get("status","Pendente")) if e.get("status") in STATUS_OPCOES else 0)
                         ne_transportadora = st.text_input("Transportadora", value=e.get("transportadora",""))
                         ne_rastreio = st.text_input("Rastreio", value=e.get("rastreio",""))
-                        ne_data_envio_val = None
-                        if e.get("dataEnvio"):
-                            try:
-                                ne_data_envio_val = datetime.strptime(e["dataEnvio"], "%Y-%m-%d").date()
-                            except Exception:
-                                norm = _normalizar_data_iso(e["dataEnvio"])
-                                ne_data_envio_val = datetime.strptime(norm, "%Y-%m-%d").date() if norm else None
-                        ne_data_envio = st.date_input("Data Envio", value=ne_data_envio_val)
-                        ne_data_entrega_val = None
-                        if e.get("dataEntrega"):
-                            try:
-                                ne_data_entrega_val = datetime.strptime(e["dataEntrega"], "%Y-%m-%d").date()
-                            except Exception:
-                                norm = _normalizar_data_iso(e["dataEntrega"])
-                                ne_data_entrega_val = datetime.strptime(norm, "%Y-%m-%d").date() if norm else None
-                        ne_data_entrega = st.date_input("Data Entrega", value=ne_data_entrega_val)
+                        ne_data_envio_str = _iso_para_br(e.get("dataEnvio",""))
+                        ne_data_envio_txt = st.text_input("Data Envio (DD/MM/AAAA)", value=ne_data_envio_str)
+                        ne_data_envio = _parse_data_br(ne_data_envio_txt) if ne_data_envio_txt.strip() else None
+                        ne_data_entrega_str = _iso_para_br(e.get("dataEntrega",""))
+                        ne_data_entrega_txt = st.text_input("Data Entrega (DD/MM/AAAA)", value=ne_data_entrega_str)
+                        ne_data_entrega = _parse_data_br(ne_data_entrega_txt) if ne_data_entrega_txt.strip() else None
                         ne_obs = st.text_area("Observações", value=e.get("observacoes",""))
                         if st.form_submit_button("💾 Salvar"):
                             e["status"] = ne_status
@@ -1288,6 +1277,26 @@ def _iso_para_br(valor):
         except Exception:
             pass
     return s
+
+
+def _parse_data_br(texto):
+    """Converte texto DD/MM/YYYY para objeto date. Retorna date.today() se inválido."""
+    if not texto or str(texto).strip() == "":
+        return date.today()
+    s = str(texto).strip()
+    # Se já vem no formato ISO
+    if re.match(r"^\d{4}-\d{2}-\d{2}$", s):
+        try:
+            return datetime.strptime(s, "%Y-%m-%d").date()
+        except Exception:
+            pass
+    # Formato brasileiro DD/MM/YYYY
+    if re.match(r"^\d{2}/\d{2}/\d{4}$", s):
+        try:
+            return datetime.strptime(s, "%d/%m/%Y").date()
+        except Exception:
+            pass
+    return date.today()
 
 
 def _solicitacao_to_row(s):
