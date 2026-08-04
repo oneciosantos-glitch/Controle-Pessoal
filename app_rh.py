@@ -548,17 +548,18 @@ def page_nova_solicitacao():
                 edit_sol = s
                 break
 
-    with st.form("form_nova_solicitacao"):
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            cliente = st.selectbox("Cliente *", CLIENTES, index=CLIENTES.index(edit_sol["cliente"]) if edit_sol and edit_sol.get("cliente") in CLIENTES else 0)
-        with c2:
-            lojas = LOJAS_POR_CLIENTE.get(cliente, [])
-            idx_loja = lojas.index(edit_sol["loja"]) if edit_sol and edit_sol.get("loja") in lojas else 0
-            loja = st.selectbox("Loja *", lojas, index=idx_loja)
-        with c3:
-            tipo = st.selectbox("Tipo *", TIPOS_SOLICITACAO, index=TIPOS_SOLICITACAO.index(edit_sol["tipo"]) if edit_sol and edit_sol.get("tipo") in TIPOS_SOLICITACAO else 0)
+    # Seletores fora do form para atualização dinâmica
+    col_sel1, col_sel2, col_sel3 = st.columns(3)
+    with col_sel1:
+        cliente = st.selectbox("Cliente *", CLIENTES, index=CLIENTES.index(edit_sol["cliente"]) if edit_sol and edit_sol.get("cliente") in CLIENTES else 0, key="nova_cliente")
+    with col_sel2:
+        lojas = LOJAS_POR_CLIENTE.get(cliente, [])
+        idx_loja = lojas.index(edit_sol["loja"]) if edit_sol and edit_sol.get("loja") in lojas else 0
+        loja = st.selectbox("Loja *", lojas, index=idx_loja, key="nova_loja")
+    with col_sel3:
+        tipo = st.selectbox("Tipo *", TIPOS_SOLICITACAO, index=TIPOS_SOLICITACAO.index(edit_sol["tipo"]) if edit_sol and edit_sol.get("tipo") in TIPOS_SOLICITACAO else 0, key="nova_tipo")
 
+    with st.form("form_nova_solicitacao"):
         c4, c5, c6 = st.columns(3)
         with c4:
             solicitante = st.text_input("Solicitante *", value=edit_sol.get("solicitante","") if edit_sol else "")
