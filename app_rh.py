@@ -1015,7 +1015,9 @@ def render_compras():
             st.session_state["compras_page"] = menu
             st.session_state["compras_edit_id"] = None
             st.session_state["compras_edit_loaded"] = False
-            st.rerun()
+            # st.rerun() removido: o Streamlit já reexecuta automaticamente ao
+            # interagir com o radio. O conteúdo da nova página será renderizado
+            # logo abaixo na mesma execução, eliminando uma rodada dupla.
 
     with col_conteudo:
         page = st.session_state["compras_page"]
