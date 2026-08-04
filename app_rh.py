@@ -3332,17 +3332,2486 @@ with aba11:
                 st.rerun()
 
 
+
+
 # ====================== ABA 12: SISTEMA DE COMPRAS ======================
 with aba12:
     st.subheader("🛒 SISTEMA DE COMPRAS E ENTREGAS")
     st.info("Módulo completo de controle de compras, solicitações e entregas.")
 
-    # Carrega o sistema de compras HTML completo
-    html_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sistema_compras.html")
-    if os.path.exists(html_path):
-        with open(html_path, 'r', encoding='utf-8') as f_html:
-            html_compras = f_html.read()
-        st.components.v1.html(html_compras, height=900, scrolling=True)
-    else:
-        st.error("❌ Arquivo sistema_compras.html não encontrado. Verifique se o arquivo está na mesma pasta do app_rh.py.")
-        st.info(f"Caminho esperado: {html_path}")
+    # HTML do sistema de compras embutido diretamente (não depende de arquivo externo)
+    HTML_COMPRAS = """<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Compras e Controle de Entregas - Materiais e EPIs</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #1a56db;
+            --primary-dark: #1e429f;
+            --primary-light: #e1effe;
+            --success: #0e9f6e;
+            --success-light: #def7ec;
+            --warning: #f59e0b;
+            --warning-light: #fef3c7;
+            --danger: #e02424;
+            --danger-light: #fde8e8;
+            --gray-50: #f9fafb;
+            --gray-100: #f3f4f6;
+            --gray-200: #e5e7eb;
+            --gray-300: #d1d5db;
+            --gray-400: #9ca3af;
+            --gray-500: #6b7280;
+            --gray-600: #4b5563;
+            --gray-700: #374151;
+            --gray-800: #1f2937;
+            --gray-900: #111827;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--gray-50);
+            color: var(--gray-800);
+            min-height: 100vh;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 260px;
+            background: var(--gray-900);
+            color: white;
+            position: fixed;
+            height: 100vh;
+            left: 0;
+            top: 0;
+            overflow-y: auto;
+            z-index: 100;
+            transition: transform 0.3s ease;
+        }
+
+        .sidebar-header {
+            padding: 24px 20px;
+            border-bottom: 1px solid var(--gray-700);
+        }
+
+        .sidebar-header h1 {
+            font-size: 18px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .sidebar-header p {
+            font-size: 12px;
+            color: var(--gray-400);
+            margin-top: 4px;
+        }
+
+        .nav-menu { padding: 16px 12px; }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: var(--gray-300);
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+
+        .nav-item:hover { background: var(--gray-800); color: white; }
+        .nav-item.active { background: var(--primary); color: white; }
+        .nav-item i { width: 20px; text-align: center; }
+
+        /* Main Content */
+        .main-content {
+            margin-left: 260px;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: white;
+            border-bottom: 1px solid var(--gray-200);
+            padding: 16px 32px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 50;
+        }
+
+        .header h2 { font-size: 20px; font-weight: 600; }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 14px;
+            color: var(--gray-500);
+        }
+
+        .content { padding: 32px; }
+
+        /* Cards */
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 20px;
+            margin-bottom: 32px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--gray-100);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .card-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+
+        .card-icon.blue { background: var(--primary-light); color: var(--primary); }
+        .card-icon.green { background: var(--success-light); color: var(--success); }
+        .card-icon.orange { background: var(--warning-light); color: var(--warning); }
+        .card-icon.red { background: var(--danger-light); color: var(--danger); }
+
+        .card h3 { font-size: 28px; font-weight: 700; color: var(--gray-900); }
+        .card p { font-size: 14px; color: var(--gray-500); margin-top: 4px; }
+
+        /* Section */
+        .section {
+            background: white;
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--gray-100);
+            margin-bottom: 24px;
+        }
+
+        .section-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--gray-100);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .section-header h3 { font-size: 16px; font-weight: 600; }
+
+        .section-body { padding: 24px; }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: none;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover { background: var(--primary-dark); }
+
+        .btn-success { background: var(--success); color: white; }
+        .btn-success:hover { background: #057a55; }
+
+        .btn-warning { background: var(--warning); color: white; }
+        .btn-warning:hover { background: #d97706; }
+
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-danger:hover { background: #b91c1c; }
+
+        .btn-secondary { background: var(--gray-100); color: var(--gray-700); }
+        .btn-secondary:hover { background: var(--gray-200); }
+
+        .btn-sm { padding: 6px 14px; font-size: 13px; }
+
+        /* Form */
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+        }
+
+        .form-group { display: flex; flex-direction: column; gap: 6px; }
+        .form-group.full { grid-column: 1 / -1; }
+
+        .form-group label {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--gray-700);
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            padding: 10px 14px;
+            border: 1px solid var(--gray-300);
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+            transition: all 0.2s;
+            background: white;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(26, 86, 219, 0.1);
+        }
+
+        .form-group textarea { resize: vertical; min-height: 80px; }
+
+        /* File Upload */
+        .file-upload {
+            border: 2px dashed var(--gray-300);
+            border-radius: 10px;
+            padding: 24px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        .file-upload:hover { border-color: var(--primary); background: var(--primary-light); }
+        .file-upload input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+        .file-upload i { font-size: 28px; color: var(--gray-400); margin-bottom: 8px; }
+        .file-upload p { font-size: 14px; color: var(--gray-500); }
+        .file-upload .file-name { font-size: 13px; color: var(--primary); font-weight: 500; margin-top: 8px; }
+
+        /* Table */
+        .table-wrap { overflow-x: auto; }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        th, td { padding: 14px 16px; text-align: left; }
+        th {
+            background: var(--gray-50);
+            font-weight: 600;
+            color: var(--gray-600);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-bottom: 1px solid var(--gray-200);
+        }
+        td { border-bottom: 1px solid var(--gray-100); vertical-align: middle; }
+        tr:hover td { background: var(--gray-50); }
+
+        /* Status badges */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            border-radius: 9999px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .badge-pendente { background: var(--warning-light); color: #92400e; }
+        .badge-aprovado { background: var(--primary-light); color: #1e429f; }
+        .badge-entregue { background: var(--success-light); color: #057a55; }
+        .badge-cancelado { background: var(--danger-light); color: #991b1b; }
+        .badge-em-transito { background: #dbeafe; color: #1e40af; }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 4px;
+            border-bottom: 1px solid var(--gray-200);
+            margin-bottom: 24px;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            color: var(--gray-500);
+            transition: all 0.2s;
+        }
+
+        .tab:hover { color: var(--gray-700); }
+        .tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 200;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
+        }
+
+        .modal-overlay.active { opacity: 1; pointer-events: all; }
+
+        .modal {
+            background: white;
+            border-radius: 16px;
+            width: 90%;
+            max-width: 700px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: var(--shadow-lg);
+            transform: scale(0.95);
+            transition: transform 0.2s;
+        }
+
+        .modal-overlay.active .modal { transform: scale(1); }
+
+        .modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--gray-100);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .modal-header h3 { font-size: 18px; font-weight: 600; }
+        .modal-close { background: none; border: none; font-size: 20px; cursor: pointer; color: var(--gray-400); }
+        .modal-close:hover { color: var(--gray-700); }
+        .modal-body { padding: 24px; }
+        .modal-footer {
+            padding: 16px 24px;
+            border-top: 1px solid var(--gray-100);
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        /* Items list in form */
+        .items-list { display: flex; flex-direction: column; gap: 12px; }
+        .item-row {
+            display: grid;
+            grid-template-columns: 1fr 100px 120px 40px;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .item-row input, .item-row select { padding: 8px 12px; }
+        .btn-remove-item {
+            width: 32px; height: 32px;
+            border-radius: 6px;
+            border: none;
+            background: var(--danger-light);
+            color: var(--danger);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Search and filters */
+        .toolbar {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .toolbar input, .toolbar select {
+            padding: 10px 14px;
+            border: 1px solid var(--gray-300);
+            border-radius: 8px;
+            font-size: 14px;
+            min-width: 200px;
+        }
+
+        /* Attachment chips */
+        .attachment-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+        .attachment-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: var(--primary-light);
+            color: var(--primary-dark);
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .attachment-chip i { cursor: pointer; }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            padding: 14px 20px;
+            border-radius: 10px;
+            color: white;
+            font-weight: 500;
+            font-size: 14px;
+            z-index: 300;
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s;
+        }
+        .toast.show { transform: translateY(0); opacity: 1; }
+        .toast.success { background: var(--success); }
+        .toast.error { background: var(--danger); }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .sidebar { transform: translateX(-100%); }
+            .sidebar.open { transform: translateX(0); }
+            .main-content { margin-left: 0; }
+            .cards-grid { grid-template-columns: 1fr; }
+            .form-grid { grid-template-columns: 1fr; }
+            .item-row { grid-template-columns: 1fr 80px 100px 36px; }
+        }
+
+        .hidden { display: none !important; }
+
+        /* Detail view */
+        .detail-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+        }
+        .detail-item { display: flex; flex-direction: column; gap: 4px; }
+        .detail-item label { font-size: 12px; color: var(--gray-500); font-weight: 500; text-transform: uppercase; }
+        .detail-item span { font-size: 14px; color: var(--gray-800); font-weight: 600; }
+
+        .timeline {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            margin-top: 16px;
+        }
+        .timeline-item {
+            display: flex;
+            gap: 16px;
+            align-items: flex-start;
+        }
+        .timeline-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--primary);
+            margin-top: 4px;
+            flex-shrink: 0;
+        }
+        .timeline-content { font-size: 14px; }
+        .timeline-content small { color: var(--gray-400); }
+
+        /* Print styles */
+        @media print {
+            .sidebar, .header, .btn, .tabs { display: none !important; }
+            .main-content { margin-left: 0; }
+            .section { box-shadow: none; border: 1px solid #ddd; }
+        }
+
+        .doc-download-box {
+            background: var(--primary-light);
+            border: 1px dashed var(--primary);
+            border-radius: 10px;
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .doc-download-box i { font-size: 24px; color: var(--primary); }
+        .doc-download-box div { flex: 1; }
+        .doc-download-box p { font-size: 13px; color: var(--gray-600); margin: 2px 0 0; }
+    </style>
+</head>
+<body>
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h1><i class="fas fa-boxes-stacked"></i> SupplyControl</h1>
+            <p>Sistema de Compras e Entregas</p>
+        </div>
+        <nav class="nav-menu">
+            <div class="nav-item active" onclick="showSection('dashboard')">
+                <i class="fas fa-chart-pie"></i> Dashboard
+            </div>
+            <div class="nav-item" onclick="showSection('solicitacoes')">
+                <i class="fas fa-file-invoice"></i> Solicitações
+            </div>
+            <div class="nav-item" onclick="showSection('nova')">
+                <i class="fas fa-plus-circle"></i> Nova Solicitação
+            </div>
+            <div class="nav-item" onclick="showSection('entregas')">
+                <i class="fas fa-truck-fast"></i> Controle de Entregas
+            </div>
+            <div class="nav-item" onclick="showSection('materiais')">
+                <i class="fas fa-clipboard-list"></i> Catálogo de Materiais
+            </div>
+            <div class="nav-item" onclick="showSection('lojas')">
+                <i class="fas fa-store"></i> Lojas e Clientes
+            </div>
+            <div class="nav-item" onclick="showSection('relatorios')">
+                <i class="fas fa-file-export"></i> Relatórios e Downloads
+            </div>
+        </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Header -->
+        <header class="header">
+            <h2 id="page-title">Dashboard</h2>
+            <div class="user-info">
+                <i class="fas fa-user-circle" style="font-size:28px;color:var(--gray-400)"></i>
+                <span>Administrador</span>
+                <span style="color:var(--gray-300)">|</span>
+                <span id="current-date"></span>
+            </div>
+        </header>
+
+        <div class="content">
+            <!-- DASHBOARD -->
+            <div id="sec-dashboard" class="page-section">
+                <div class="cards-grid">
+                    <div class="card">
+                        <div class="card-header">
+                            <div>
+                                <p>Total de Solicitações</p>
+                                <h3 id="dash-total">0</h3>
+                            </div>
+                            <div class="card-icon blue"><i class="fas fa-file-invoice"></i></div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">
+                            <div>
+                                <p>Pendentes</p>
+                                <h3 id="dash-pendentes">0</h3>
+                            </div>
+                            <div class="card-icon orange"><i class="fas fa-clock"></i></div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">
+                            <div>
+                                <p>Em Trânsito</p>
+                                <h3 id="dash-transito">0</h3>
+                            </div>
+                            <div class="card-icon blue"><i class="fas fa-truck"></i></div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">
+                            <div>
+                                <p>Entregues</p>
+                                <h3 id="dash-entregues">0</h3>
+                            </div>
+                            <div class="card-icon green"><i class="fas fa-check-circle"></i></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <div class="section-header">
+                        <h3><i class="fas fa-list" style="margin-right:8px"></i>Últimas Solicitações</h3>
+                        <button class="btn btn-primary btn-sm" onclick="showSection('nova')"><i class="fas fa-plus"></i> Nova</button>
+                    </div>
+                    <div class="section-body">
+                        <div class="table-wrap">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Data</th>
+                                        <th>Loja</th>
+                                        <th>Tipo</th>
+                                        <th>Solicitante</th>
+                                        <th>Itens</th>
+                                        <th>Valor</th>
+                                        <th>Status</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="dash-recentes"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SOLICITAÇÕES -->
+            <div id="sec-solicitacoes" class="page-section hidden">
+                <div class="section">
+                    <div class="section-header">
+                        <h3><i class="fas fa-file-invoice" style="margin-right:8px"></i>Todas as Solicitações</h3>
+                        <div style="display:flex;gap:10px">
+                            <button class="btn btn-secondary btn-sm" onclick="exportarSolicitacoesCSV()"><i class="fas fa-download"></i> CSV</button>
+                            <button class="btn btn-primary btn-sm" onclick="showSection('nova')"><i class="fas fa-plus"></i> Nova Solicitação</button>
+                        </div>
+                    </div>
+                    <div class="section-body">
+                        <div class="toolbar">
+                            <input type="text" id="filtro-busca" placeholder="Buscar por loja, solicitante ou ID..." oninput="renderSolicitacoes()">
+                            <select id="filtro-status" onchange="renderSolicitacoes()">
+                                <option value="">Todos os Status</option>
+                                <option value="Pendente">Pendente</option>
+                                <option value="Aprovado">Aprovado</option>
+                                <option value="Em Trânsito">Em Trânsito</option>
+                                <option value="Entregue">Entregue</option>
+                                <option value="Cancelado">Cancelado</option>
+                            </select>
+                            <select id="filtro-loja" onchange="renderSolicitacoes()">
+                                <option value="">Todas as Lojas</option>
+                            </select>
+                            <select id="filtro-cliente" onchange="renderSolicitacoes()">
+                                <option value="">Todos os Clientes</option>
+                            </select>
+                            <input type="date" id="filtro-data-inicio" onchange="renderSolicitacoes()">
+                            <input type="date" id="filtro-data-fim" onchange="renderSolicitacoes()">
+                        </div>
+                        <div class="table-wrap">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Data</th>
+                                        <th>Loja</th>
+                                        <th>Cliente</th>
+                                        <th>Tipo</th>
+                                        <th>Solicitante</th>
+                                        <th>Itens</th>
+                                        <th>Valor Total</th>
+                                        <th>Status</th>
+                                        <th>Anexos</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="lista-solicitacoes"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- NOVA SOLICITAÇÃO -->
+            <div id="sec-nova" class="page-section hidden">
+                <div class="section">
+                    <div class="section-header">
+                        <h3><i class="fas fa-plus-circle" style="margin-right:8px"></i>Nova Solicitação de Compra</h3>
+                    </div>
+                    <div class="section-body">
+                        <form id="form-solicitacao" onsubmit="salvarSolicitacao(event)" novalidate>
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label>Cliente *</label>
+                                    <select id="ns-cliente" required onchange="onClienteChange()">
+                                        <option value="">Selecione o cliente</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Loja *</label>
+                                    <select id="ns-loja" required>
+                                        <option value="">Selecione o cliente primeiro</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Tipo de Solicitação *</label>
+                                    <select id="ns-tipo" required onchange="onTipoChange()">
+                                        <option value="">Selecione</option>
+                                        <option value="Material">Material</option>
+                                        <option value="EPI">EPI</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Solicitante *</label>
+                                    <input type="text" id="ns-solicitante" placeholder="Nome do solicitante" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Data da Solicitação *</label>
+                                    <input type="date" id="ns-data" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Prioridade</label>
+                                    <select id="ns-prioridade">
+                                        <option value="Normal">Normal</option>
+                                        <option value="Urgente">Urgente</option>
+                                        <option value="Baixa">Baixa</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Previsão de Entrega</label>
+                                    <input type="date" id="ns-previsao">
+                                </div>
+                                <div class="form-group full">
+                                    <label>Observações</label>
+                                    <textarea id="ns-obs" placeholder="Informações adicionais sobre a solicitação..."></textarea>
+                                </div>
+                            </div>
+
+                            <!-- Documento EPI Padrão -->
+                            <div id="epi-doc-section" class="hidden">
+                                <hr style="margin:24px 0;border:none;border-top:1px solid var(--gray-200)">
+                                <h4 style="margin-bottom:16px;font-size:15px"><i class="fas fa-file-word" style="margin-right:8px;color:var(--primary)"></i>Documento EPI Padrão</h4>
+                                <div class="form-group">
+                                    <label>Nome (Funcionário)</label>
+                                    <input type="text" id="ns-epi-nome" class="form-control" placeholder="Nome do funcionário">
+                                </div>
+                                <div class="form-group">
+                                    <label>Encarregado</label>
+                                    <input type="text" id="ns-epi-encarregado" class="form-control" placeholder="Nome do encarregado">
+                                </div>
+                                <div class="form-group">
+                                    <label>Supervisor</label>
+                                    <input type="text" id="ns-epi-supervisor" class="form-control" placeholder="Nome do supervisor">
+                                </div>
+                                <div class="form-group">
+                                    <label>Data da última bota entregue ou ficha de EPIs em anexo</label>
+                                    <input type="date" id="ns-epi-data-bota" class="form-control">
+                                </div>
+                                <div class="doc-download-box">
+                                    <i class="fas fa-file-word"></i>
+                                    <div>
+                                        <strong>Solicitação de EPI - Documento Padrão</strong>
+                                        <p>Baixe o documento modelo de EPI para preenchimento. Válido para Smart Fit, Self Fit e Assaí Atacadista.</p>
+                                    </div>
+                                    <button type="button" class="btn btn-primary btn-sm" onclick="baixarDocEPI()"><i class="fas fa-download"></i> Baixar .doc</button>
+                                </div>
+                                <div class="form-group">
+                                    <label>Anexar Documento EPI Preenchido</label>
+                                    <div class="file-upload" onclick="document.getElementById('file-epi').click()">
+                                        <input type="file" id="file-epi" accept=".doc,.docx,.pdf" onchange="handleFile(this, 'epi')">
+                                        <i class="fas fa-file-word"></i>
+                                        <p>Clique para anexar documento EPI preenchido</p>
+                                        <div class="file-name" id="nome-epi"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Itens Material -->
+                            <div id="material-itens-section" class="hidden">
+                                <hr style="margin:24px 0;border:none;border-top:1px solid var(--gray-200)">
+                                <h4 style="margin-bottom:16px;font-size:15px"><i class="fas fa-box-open" style="margin-right:8px;color:var(--primary)"></i>Itens da Solicitação de Material</h4>
+                                <div class="items-list" id="itens-container">
+                                    <div class="item-row" style="font-weight:600;font-size:12px;color:var(--gray-500);text-transform:uppercase">
+                                        <span>Material</span>
+                                        <span>Qtd</span>
+                                        <span>Valor Unit.</span>
+                                        <span></span>
+                                    </div>
+                                </div>
+                                <button type="button" class="btn btn-secondary btn-sm" style="margin-top:12px" onclick="adicionarItem()"><i class="fas fa-plus"></i> Adicionar Item</button>
+                            </div>
+
+                            <!-- Itens EPI -->
+                            <div id="epi-itens-section" class="hidden">
+                                <hr style="margin:24px 0;border:none;border-top:1px solid var(--gray-200)">
+                                <h4 style="margin-bottom:16px;font-size:15px"><i class="fas fa-helmet-safety" style="margin-right:8px;color:var(--primary)"></i>Itens da Solicitação de EPI</h4>
+                                <div class="items-list" id="epi-itens-container">
+                                    <div class="item-row" style="font-weight:600;font-size:12px;color:var(--gray-500);text-transform:uppercase;grid-template-columns:1.2fr 1fr 70px 90px 40px;">
+                                        <span>EPI</span>
+                                        <span>Colaborador</span>
+                                        <span>Qtd</span>
+                                        <span>Tamanho</span>
+                                        <span></span>
+                                    </div>
+                                </div>
+                                <button type="button" class="btn btn-secondary btn-sm" style="margin-top:12px" onclick="adicionarItemEPI()"><i class="fas fa-plus"></i> Adicionar EPI</button>
+                            </div>
+
+                            <hr style="margin:24px 0;border:none;border-top:1px solid var(--gray-200)">
+
+                            <h4 style="margin-bottom:16px;font-size:15px"><i class="fas fa-paperclip" style="margin-right:8px;color:var(--primary)"></i>Anexos</h4>
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label>Planilha de Solicitação (do Cliente)</label>
+                                    <div class="file-upload" onclick="document.getElementById('file-planilha').click()">
+                                        <input type="file" id="file-planilha" accept=".xlsx,.xls,.csv,.pdf" onchange="handleFile(this, 'planilha')">
+                                        <i class="fas fa-file-excel"></i>
+                                        <p>Clique para anexar planilha do cliente</p>
+                                        <div class="file-name" id="nome-planilha"></div>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Comprovante de Pagamento</label>
+                                    <div class="file-upload" onclick="document.getElementById('file-pagamento').click()">
+                                        <input type="file" id="file-pagamento" accept=".pdf,.png,.jpg,.jpeg" onchange="handleFile(this, 'pagamento')">
+                                        <i class="fas fa-file-invoice-dollar"></i>
+                                        <p>Clique para anexar comprovante</p>
+                                        <div class="file-name" id="nome-pagamento"></div>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Outros Anexos</label>
+                                    <div class="file-upload" onclick="document.getElementById('file-outros').click()">
+                                        <input type="file" id="file-outros" multiple onchange="handleFile(this, 'outros')">
+                                        <i class="fas fa-folder-open"></i>
+                                        <p>Clique para anexar outros arquivos</p>
+                                        <div class="file-name" id="nome-outros"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div style="margin-top:24px;display:flex;justify-content:flex-end;gap:12px">
+                                <button type="button" class="btn btn-secondary" onclick="showSection('solicitacoes')">Cancelar</button>
+                                <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Salvar Solicitação</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ENTREGAS -->
+            <div id="sec-entregas" class="page-section hidden">
+                <div class="section">
+                    <div class="section-header">
+                        <h3><i class="fas fa-truck-fast" style="margin-right:8px"></i>Controle de Entregas</h3>
+                        <button class="btn btn-success btn-sm" onclick="exportarEntregasCSV()"><i class="fas fa-download"></i> Exportar Entregas</button>
+                    </div>
+                    <div class="section-body">
+                        <div class="toolbar">
+                            <input type="text" id="filtro-entrega-busca" placeholder="Buscar..." oninput="renderEntregas()">
+                            <select id="filtro-entrega-status" onchange="renderEntregas()">
+                                <option value="">Todos</option>
+                                <option value="Pendente">Pendente</option>
+                                <option value="Em Trânsito">Em Trânsito</option>
+                                <option value="Entregue">Entregue</option>
+                            </select>
+                        </div>
+                        <div class="table-wrap">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>ID Solicitação</th>
+                                        <th>Loja</th>
+                                        <th>Tipo</th>
+                                        <th>Data Envio</th>
+                                        <th>Data Prevista</th>
+                                        <th>Data Entrega</th>
+                                        <th>Transportadora</th>
+                                        <th>Rastreio</th>
+                                        <th>Status Entrega</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="lista-entregas"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MATERIAIS -->
+            <div id="sec-materiais" class="page-section hidden">
+                <div class="section">
+                    <div class="section-header">
+                        <h3><i class="fas fa-clipboard-list" style="margin-right:8px"></i>Catálogo de Materiais e EPIs</h3>
+                        <button class="btn btn-primary btn-sm" onclick="exportarMateriaisCSV()"><i class="fas fa-download"></i> Exportar Lista</button>
+                    </div>
+                    <div class="section-body">
+                        <div class="toolbar">
+                            <select id="filtro-material-cliente" onchange="renderMateriais()">
+                                <option value="">Todos os Clientes</option>
+                            </select>
+                            <input type="text" id="filtro-material" placeholder="Buscar material..." oninput="renderMateriais()">
+                        </div>
+                        <div class="table-wrap">
+                            <table>
+                                <thead>
+                                    <tr><th>#</th><th>Descrição do Material / EPI</th><th>Cliente</th><th>Categoria</th></tr>
+                                </thead>
+                                <tbody id="lista-materiais"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- LOJAS -->
+            <div id="sec-lojas" class="page-section hidden">
+                <div class="cards-grid">
+                    <div class="section" style="margin-bottom:0">
+                        <div class="section-header">
+                            <h3><i class="fas fa-store" style="margin-right:8px"></i>Lojas Cadastradas</h3>
+                            <span class="badge badge-aprovado" id="count-lojas">0 lojas</span>
+                        </div>
+                        <div class="section-body">
+                            <div class="toolbar">
+                                <select id="filtro-loja-cliente" onchange="renderLojas()">
+                                    <option value="">Todos os Clientes</option>
+                                </select>
+                                <input type="text" id="filtro-loja-lista" placeholder="Buscar loja..." oninput="renderLojas()">
+                            </div>
+                            <div class="table-wrap">
+                                <table>
+                                    <thead><tr><th>#</th><th>Nome da Loja</th><th>Cliente</th></tr></thead>
+                                    <tbody id="lista-lojas"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="section" style="margin-bottom:0">
+                        <div class="section-header">
+                            <h3><i class="fas fa-building" style="margin-right:8px"></i>Clientes</h3>
+                            <span class="badge badge-aprovado" id="count-clientes">0 clientes</span>
+                        </div>
+                        <div class="section-body">
+                            <div class="table-wrap">
+                                <table>
+                                    <thead><tr><th>#</th><th>Nome do Cliente</th></tr></thead>
+                                    <tbody id="lista-clientes"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RELATÓRIOS -->
+            <div id="sec-relatorios" class="page-section hidden">
+                <div class="cards-grid">
+                    <div class="card" style="cursor:pointer" onclick="exportarSolicitacoesCSV()">
+                        <div class="card-header">
+                            <div>
+                                <p style="font-size:12px;color:var(--gray-400)">DOWNLOAD</p>
+                                <h3 style="font-size:16px">Solicitações (CSV)</h3>
+                            </div>
+                            <div class="card-icon blue"><i class="fas fa-file-csv"></i></div>
+                        </div>
+                        <p style="font-size:13px;margin-top:8px">Exporte todas as solicitações em formato CSV para Excel.</p>
+                    </div>
+                    <div class="card" style="cursor:pointer" onclick="exportarEntregasCSV()">
+                        <div class="card-header">
+                            <div>
+                                <p style="font-size:12px;color:var(--gray-400)">DOWNLOAD</p>
+                                <h3 style="font-size:16px">Entregas (CSV)</h3>
+                            </div>
+                            <div class="card-icon green"><i class="fas fa-file-csv"></i></div>
+                        </div>
+                        <p style="font-size:13px;margin-top:8px">Exporte o controle de entregas em formato CSV.</p>
+                    </div>
+                    <div class="card" style="cursor:pointer" onclick="exportarMateriaisCSV()">
+                        <div class="card-header">
+                            <div>
+                                <p style="font-size:12px;color:var(--gray-400)">DOWNLOAD</p>
+                                <h3 style="font-size:16px">Materiais/EPIs (CSV)</h3>
+                            </div>
+                            <div class="card-icon orange"><i class="fas fa-file-csv"></i></div>
+                        </div>
+                        <p style="font-size:13px;margin-top:8px">Exporte o catálogo completo de materiais e EPIs.</p>
+                    </div>
+                    <div class="card" style="cursor:pointer" onclick="window.print()">
+                        <div class="card-header">
+                            <div>
+                                <p style="font-size:12px;color:var(--gray-400)">IMPRIMIR</p>
+                                <h3 style="font-size:16px">Relatório Geral</h3>
+                            </div>
+                            <div class="card-icon red"><i class="fas fa-print"></i></div>
+                        </div>
+                        <p style="font-size:13px;margin-top:8px">Imprima o relatório completo do sistema.</p>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <div class="section-header">
+                        <h3><i class="fas fa-filter" style="margin-right:8px"></i>Relatório Personalizado</h3>
+                    </div>
+                    <div class="section-body">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Período Início</label>
+                                <input type="date" id="rel-data-inicio">
+                            </div>
+                            <div class="form-group">
+                                <label>Período Fim</label>
+                                <input type="date" id="rel-data-fim">
+                            </div>
+                            <div class="form-group">
+                                <label>Cliente</label>
+                                <select id="rel-cliente"><option value="">Todos</option></select>
+                            </div>
+                            <div class="form-group">
+                                <label>Loja</label>
+                                <select id="rel-loja"><option value="">Todas</option></select>
+                            </div>
+                            <div class="form-group">
+                                <label>Status</label>
+                                <select id="rel-status">
+                                    <option value="">Todos</option>
+                                    <option value="Pendente">Pendente</option>
+                                    <option value="Aprovado">Aprovado</option>
+                                    <option value="Em Trânsito">Em Trânsito</option>
+                                    <option value="Entregue">Entregue</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Tipo</label>
+                                <select id="rel-tipo">
+                                    <option value="">Todos</option>
+                                    <option value="Material">Material</option>
+                                    <option value="EPI">EPI</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div style="margin-top:20px;display:flex;gap:10px">
+                            <button class="btn btn-primary" onclick="gerarRelatorioPersonalizado()"><i class="fas fa-file-export"></i> Gerar e Baixar CSV</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal Detalhes -->
+    <div class="modal-overlay" id="modal-detalhes">
+        <div class="modal">
+            <div class="modal-header">
+                <h3><i class="fas fa-eye" style="margin-right:8px;color:var(--primary)"></i>Detalhes da Solicitação</h3>
+                <button class="modal-close" onclick="closeModal('modal-detalhes')"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body" id="modal-detalhes-body"></div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('modal-detalhes')">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Editar Entrega -->
+    <div class="modal-overlay" id="modal-entrega">
+        <div class="modal">
+            <div class="modal-header">
+                <h3><i class="fas fa-truck-fast" style="margin-right:8px;color:var(--primary)"></i>Atualizar Entrega</h3>
+                <button class="modal-close" onclick="closeModal('modal-entrega')"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <form id="form-entrega" onsubmit="salvarEntrega(event)">
+                    <input type="hidden" id="ent-id-solic">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Status da Entrega</label>
+                            <select id="ent-status" required>
+                                <option value="Pendente">Pendente</option>
+                                <option value="Em Trânsito">Em Trânsito</option>
+                                <option value="Entregue">Entregue</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Data de Envio</label>
+                            <input type="date" id="ent-data-envio">
+                        </div>
+                        <div class="form-group">
+                            <label>Data Prevista</label>
+                            <input type="date" id="ent-data-prevista">
+                        </div>
+                        <div class="form-group">
+                            <label>Data de Entrega Real</label>
+                            <input type="date" id="ent-data-entrega">
+                        </div>
+                        <div class="form-group">
+                            <label>Transportadora</label>
+                            <input type="text" id="ent-transportadora" placeholder="Nome da transportadora">
+                        </div>
+                        <div class="form-group">
+                            <label>Código de Rastreio</label>
+                            <input type="text" id="ent-rastreio" placeholder="Código de rastreio">
+                        </div>
+                        <div class="form-group full">
+                            <label>Observações da Entrega</label>
+                            <textarea id="ent-obs" placeholder="Informações sobre a entrega..."></textarea>
+                        </div>
+                    </div>
+                    <div style="margin-top:20px;display:flex;justify-content:flex-end;gap:10px">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('modal-entrega')">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Salvar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+<script>
+// ========== DADOS DOS 3 CLIENTES ==========
+const CLIENTES = ["Smart Fit", "Self Fit", "Assaí Atacadista"];
+
+const LOJAS_POR_CLIENTE = {
+    "Smart Fit": [
+        "Smart Fit Shopping Manoa", "Smart Fit Shopping Cidade Leste", "Smart Fit Macapá Shopping",
+        "Smart Fit Shopping Grande Circular", "Smart Fit Shopping Via Norte", "Smart Fit Cidade Nova",
+        "Smart Fit Parque Mosaico", "Smart Fit Cachoeirinha", "Smart Fit Flores", "Smart Fit Ponta Negra",
+        "Smart Fit Nova Porto Velho", "Smart Fit Porto Velho Flodoaldo", "Smart Fit Alvorada",
+        "Smart Fit Novo Aleixo", "Smart Fit São José do Operário", "Smart Fit Santana Macapá",
+        "Smart Fit Toequato Tapajós"
+    ],
+    "Self Fit": [
+        "Self Fit Hiper DB Ponta Negra", "Self Fit Manaus Plaza Shopping", "Self Fit Vieira Alves"
+    ],
+    "Assaí Atacadista": [
+        "Assaí Atacadista Batista Campos", "Assaí Atacadista Almirante Barroso", "Assaí Atacadista Castanhal",
+        "Assaí Atacadista Ananindeua", "Assaí Atacadista Augusto Monte Negro", "Assaí Atacadista Boa Vista",
+        "Assaí Atacadista Manaus", "Assaí Atacadista Macapá", "Assaí Atacadista Belém"
+    ]
+};
+
+const MATERIAIS_POR_CLIENTE = {
+    "Smart Fit": [
+        "ÁGUA SANITÁRIA", "ASPIRADOR SEMI-INDUSTRIAL 23L", "BALDE 15L", "BALDE 6L",
+        "BALDE ESPREMEDOR COMPLETO", "CABO DE ALUMINIO SEM ROSCA", "DISCO VERMELHO 510",
+        "ENCERADEIRA INDUSTRIAL", "ESCOVA DE MÃO", "ESCOVA SANITÁRIA", "ESPONJA DUPLA FACE",
+        "EXTENSÃO DE 30 M", "FIBRAS DE LIMPEZA PESADA", "FLANELAS", "KIT LIMPA VIDRO 2 EM 1 BRALIMPIA",
+        "LIMPA TUDO (MINI LOK)", "PÁ DE LIXO COMPLETA", "PANO DE CHÃO ALVEJADO", "PLACAS SINALIZADORA",
+        "REFIL MOP ÁGUA", "RODO DE 60cm COMPLETO", "SABÃO EM PÓ", "SACO DE LIXO 100 L",
+        "SACO DE LIXO 40 L", "SACO DE LIXO 60 L", "VASSOURA DE NYLON COMPLETA", "VASSOURA DE TETO COMPLETA"
+    ],
+    "Self Fit": [
+        "ASPIRADOR DE PÓ E BATERIA SEM FIO", "BAUDE EXPREMEDOR", "REFIL MOP ÁGUA", "REFIL MOP PÓ",
+        "PLACAS SINALIZADORA", "ENCERADEIRA INDUSTRIAL", "KIT LIMPA VIDRO 2 EM 1 BRALIMPIA",
+        "PÁ COLETORA DE LIXO", "PULVERIZADOR", "CESTA MULTIUSO"
+    ],
+    "Assaí Atacadista": [
+        "Disco 510 mm - Preto", "Disco 510 mm - Marron para Remoção", "Disco 510 mm - vermelho",
+        "Disco 510 mm - Verde", "Disco pelo de porco para Polidora", "Disco champanhe para Polidora",
+        "Starlock frange 510mm aço", "Starlock frange 510mm com Velcon", "Starlock frange 510mm escova",
+        "Enceradeira industrial 510", "Armação Mop Pó 60 cm", "Armação Mop Pó 1,20 cm", "Refil mop cera",
+        "Suporte mop cera", "Lt", "Esponja p/LT", "Rodo madeira 1,20mts", "Rodo 60 cm",
+        "Cabeleira Mop Agua", "Mop Pó 60 cm", "Mop Pó 1,20 cm", "Saco Amarelo P/Carrinho",
+        "Pa coletora azul pop", "Raspador pesado sem cabo", "Raspador pesado com cabo", "Garra mop Agua",
+        "Carro coletor de lixo 240lts", "Cabo de aluminio com rosca", "Cabo de aluminio sem rosca",
+        "Lâminas p/ raspdor", "Raspador de mão", "Extenção cabo PP 3x2,5", "Borracha Organizadora Carrinho Funcional",
+        "Carrinho funcional kit completo", "Balde expremedor", "Kit manunteção para carrinho", "Vassoura nylon",
+        "Vassoura Piassava", "Vassourão gari 60 cm", "Alongador 9mts", "Regador"
+    ]
+};
+
+const EPIS_POR_CLIENTE = {
+    "Smart Fit": [
+        "Luva látex",
+        "Óculos de proteção",
+        "Luva de Vinil",
+        "Máscara de Proteção",
+        "Protetor auricular plug",
+        "Protetor tipo concha",
+        "Luva para jardineiro",
+        "Avental de raspa",
+        "Viseira",
+        "Perneira",
+        "Meia Térmica",
+        "Japonha Térmica",
+        "Calça Térmica",
+        "Luvas térmicas",
+        "Capuz Térmico",
+        "Avental Térmico",
+        "Bota C.Médio Nº34",
+        "Bota C.Médio Nº35",
+        "Bota C.Médio Nº36",
+        "Bota C.Médio Nº37",
+        "Bota C.Médio Nº38",
+        "Bota C.Médio Nº39",
+        "Bota C.Médio Nº40",
+        "Bota C.Médio Nº41",
+        "Bota C.Médio Nº42",
+        "Bota C.Médio Nº43",
+        "Bota C.Médio Nº44",
+        "Bota C.Médio Nº45",
+        "Bota C.Médio Nº46",
+        "Bota de Couro Nº34",
+        "Bota de Couro Nº35",
+        "Bota de Couro Nº36",
+        "Bota de Couro Nº37",
+        "Bota de Couro Nº38",
+        "Bota de Couro Nº39",
+        "Bota de Couro Nº40",
+        "Bota de Couro Nº41",
+        "Bota de Couro Nº42",
+        "Bota de Couro Nº43",
+        "Bota de Couro Nº44",
+        "Bota de Couro Nº45",
+        "Bota de Couro Nº46",
+        "Sapato Ant-derrapante Nº34",
+        "Sapato Ant-derrapante Nº35",
+        "Sapato Ant-derrapante Nº36",
+        "Sapato Ant-derrapante Nº37",
+        "Sapato Ant-derrapante Nº38",
+        "Sapato Ant-derrapante Nº39",
+        "Sapato Ant-derrapante Nº40",
+        "Sapato Ant-derrapante Nº41",
+        "Sapato Ant-derrapante Nº42",
+        "Sapato Ant-derrapante Nº43",
+        "Sapato Ant-derrapante Nº44",
+        "Sapato Ant-derrapante Nº45",
+        "Sapato Ant-derrapante Nº46",
+        "Farda C.Feminino (P)",
+        "Farda C.Feminino (M)",
+        "Farda C.Feminino (G)",
+        "Farda C.Feminino (GG)",
+        "Farda C.Feminino (XG)",
+        "Farda C.Masculino (P)",
+        "Farda C.Masculino (M)",
+        "Farda C.Masculino (G)",
+        "Farda C.Masculino (GG)",
+        "Farda C.Masculino (XG)",
+        "Farda p/ Jardineiro",
+        "Farda p/ Encarregado & Líder",
+        "Farda p/ Supervisor",
+        "Camisa Branca",
+        "Cauça",
+        "Chapéu"
+    ],
+    "Self Fit": [
+        "Luva látex",
+        "Óculos de proteção",
+        "Luva de Vinil",
+        "Máscara de Proteção",
+        "Protetor auricular plug",
+        "Protetor tipo concha",
+        "Luva para jardineiro",
+        "Avental de raspa",
+        "Viseira",
+        "Perneira",
+        "Meia Térmica",
+        "Japonha Térmica",
+        "Calça Térmica",
+        "Luvas térmicas",
+        "Capuz Térmico",
+        "Avental Térmico",
+        "Bota C.Médio Nº34",
+        "Bota C.Médio Nº35",
+        "Bota C.Médio Nº36",
+        "Bota C.Médio Nº37",
+        "Bota C.Médio Nº38",
+        "Bota C.Médio Nº39",
+        "Bota C.Médio Nº40",
+        "Bota C.Médio Nº41",
+        "Bota C.Médio Nº42",
+        "Bota C.Médio Nº43",
+        "Bota C.Médio Nº44",
+        "Bota C.Médio Nº45",
+        "Bota C.Médio Nº46",
+        "Bota de Couro Nº34",
+        "Bota de Couro Nº35",
+        "Bota de Couro Nº36",
+        "Bota de Couro Nº37",
+        "Bota de Couro Nº38",
+        "Bota de Couro Nº39",
+        "Bota de Couro Nº40",
+        "Bota de Couro Nº41",
+        "Bota de Couro Nº42",
+        "Bota de Couro Nº43",
+        "Bota de Couro Nº44",
+        "Bota de Couro Nº45",
+        "Bota de Couro Nº46",
+        "Sapato Ant-derrapante Nº34",
+        "Sapato Ant-derrapante Nº35",
+        "Sapato Ant-derrapante Nº36",
+        "Sapato Ant-derrapante Nº37",
+        "Sapato Ant-derrapante Nº38",
+        "Sapato Ant-derrapante Nº39",
+        "Sapato Ant-derrapante Nº40",
+        "Sapato Ant-derrapante Nº41",
+        "Sapato Ant-derrapante Nº42",
+        "Sapato Ant-derrapante Nº43",
+        "Sapato Ant-derrapante Nº44",
+        "Sapato Ant-derrapante Nº45",
+        "Sapato Ant-derrapante Nº46",
+        "Farda C.Feminino (P)",
+        "Farda C.Feminino (M)",
+        "Farda C.Feminino (G)",
+        "Farda C.Feminino (GG)",
+        "Farda C.Feminino (XG)",
+        "Farda C.Masculino (P)",
+        "Farda C.Masculino (M)",
+        "Farda C.Masculino (G)",
+        "Farda C.Masculino (GG)",
+        "Farda C.Masculino (XG)",
+        "Farda p/ Jardineiro",
+        "Farda p/ Encarregado & Líder",
+        "Farda p/ Supervisor",
+        "Camisa Branca",
+        "Cauça",
+        "Chapéu"
+    ],
+    "Bio Ritmo": [
+        "Luva látex",
+        "Óculos de proteção",
+        "Luva de Vinil",
+        "Máscara de Proteção",
+        "Protetor auricular plug",
+        "Protetor tipo concha",
+        "Luva para jardineiro",
+        "Avental de raspa",
+        "Viseira",
+        "Perneira",
+        "Meia Térmica",
+        "Japonha Térmica",
+        "Calça Térmica",
+        "Luvas térmicas",
+        "Capuz Térmico",
+        "Avental Térmico",
+        "Bota C.Médio Nº34",
+        "Bota C.Médio Nº35",
+        "Bota C.Médio Nº36",
+        "Bota C.Médio Nº37",
+        "Bota C.Médio Nº38",
+        "Bota C.Médio Nº39",
+        "Bota C.Médio Nº40",
+        "Bota C.Médio Nº41",
+        "Bota C.Médio Nº42",
+        "Bota C.Médio Nº43",
+        "Bota C.Médio Nº44",
+        "Bota C.Médio Nº45",
+        "Bota C.Médio Nº46",
+        "Bota de Couro Nº34",
+        "Bota de Couro Nº35",
+        "Bota de Couro Nº36",
+        "Bota de Couro Nº37",
+        "Bota de Couro Nº38",
+        "Bota de Couro Nº39",
+        "Bota de Couro Nº40",
+        "Bota de Couro Nº41",
+        "Bota de Couro Nº42",
+        "Bota de Couro Nº43",
+        "Bota de Couro Nº44",
+        "Bota de Couro Nº45",
+        "Bota de Couro Nº46",
+        "Sapato Ant-derrapante Nº34",
+        "Sapato Ant-derrapante Nº35",
+        "Sapato Ant-derrapante Nº36",
+        "Sapato Ant-derrapante Nº37",
+        "Sapato Ant-derrapante Nº38",
+        "Sapato Ant-derrapante Nº39",
+        "Sapato Ant-derrapante Nº40",
+        "Sapato Ant-derrapante Nº41",
+        "Sapato Ant-derrapante Nº42",
+        "Sapato Ant-derrapante Nº43",
+        "Sapato Ant-derrapante Nº44",
+        "Sapato Ant-derrapante Nº45",
+        "Sapato Ant-derrapante Nº46",
+        "Farda C.Feminino (P)",
+        "Farda C.Feminino (M)",
+        "Farda C.Feminino (G)",
+        "Farda C.Feminino (GG)",
+        "Farda C.Feminino (XG)",
+        "Farda C.Masculino (P)",
+        "Farda C.Masculino (M)",
+        "Farda C.Masculino (G)",
+        "Farda C.Masculino (GG)",
+        "Farda C.Masculino (XG)",
+        "Farda p/ Jardineiro",
+        "Farda p/ Encarregado & Líder",
+        "Farda p/ Supervisor",
+        "Camisa Branca",
+        "Cauça",
+        "Chapéu"
+    ],
+    "Assaí Atacadista": [
+        "Luva látex",
+        "Óculos de proteção",
+        "Luva de Vinil",
+        "Máscara de Proteção",
+        "Protetor auricular plug",
+        "Protetor tipo concha",
+        "Luva para jardineiro",
+        "Avental de raspa",
+        "Viseira",
+        "Perneira",
+        "Meia Térmica",
+        "Japonha Térmica",
+        "Calça Térmica",
+        "Luvas térmicas",
+        "Capuz Térmico",
+        "Avental Térmico",
+        "Bota C.Médio Nº34",
+        "Bota C.Médio Nº35",
+        "Bota C.Médio Nº36",
+        "Bota C.Médio Nº37",
+        "Bota C.Médio Nº38",
+        "Bota C.Médio Nº39",
+        "Bota C.Médio Nº40",
+        "Bota C.Médio Nº41",
+        "Bota C.Médio Nº42",
+        "Bota C.Médio Nº43",
+        "Bota C.Médio Nº44",
+        "Bota C.Médio Nº45",
+        "Bota C.Médio Nº46",
+        "Bota de Couro Nº34",
+        "Bota de Couro Nº35",
+        "Bota de Couro Nº36",
+        "Bota de Couro Nº37",
+        "Bota de Couro Nº38",
+        "Bota de Couro Nº39",
+        "Bota de Couro Nº40",
+        "Bota de Couro Nº41",
+        "Bota de Couro Nº42",
+        "Bota de Couro Nº43",
+        "Bota de Couro Nº44",
+        "Bota de Couro Nº45",
+        "Bota de Couro Nº46",
+        "Sapato Ant-derrapante Nº34",
+        "Sapato Ant-derrapante Nº35",
+        "Sapato Ant-derrapante Nº36",
+        "Sapato Ant-derrapante Nº37",
+        "Sapato Ant-derrapante Nº38",
+        "Sapato Ant-derrapante Nº39",
+        "Sapato Ant-derrapante Nº40",
+        "Sapato Ant-derrapante Nº41",
+        "Sapato Ant-derrapante Nº42",
+        "Sapato Ant-derrapante Nº43",
+        "Sapato Ant-derrapante Nº44",
+        "Sapato Ant-derrapante Nº45",
+        "Sapato Ant-derrapante Nº46",
+        "Farda C.Feminino (P)",
+        "Farda C.Feminino (M)",
+        "Farda C.Feminino (G)",
+        "Farda C.Feminino (GG)",
+        "Farda C.Feminino (XG)",
+        "Farda C.Masculino (P)",
+        "Farda C.Masculino (M)",
+        "Farda C.Masculino (G)",
+        "Farda C.Masculino (GG)",
+        "Farda C.Masculino (XG)",
+        "Farda p/ Jardineiro",
+        "Farda p/ Encarregado & Líder",
+        "Farda p/ Supervisor",
+        "Camisa Branca",
+        "Cauça",
+        "Chapéu"
+    ]
+};
+
+// Build flat stores list with client
+const LOJAS = [];
+Object.keys(LOJAS_POR_CLIENTE).forEach(cliente => {
+    LOJAS_POR_CLIENTE[cliente].forEach(nome => {
+        LOJAS.push({ nome, cliente });
+    });
+});
+
+// Build flat materials list
+const MATERIAIS = [];
+Object.keys(MATERIAIS_POR_CLIENTE).forEach(cliente => {
+    MATERIAIS_POR_CLIENTE[cliente].forEach((nome, idx) => {
+        MATERIAIS.push({ id: idx+1, nome, cliente, categoria: "Material" });
+    });
+});
+
+// Estado
+let solicitacoes = [];
+let entregas = [];
+let anexosTemp = { planilha: null, pagamento: null, epi: null, outros: [] };
+let itemCount = 0;
+
+// ========== INIT ==========
+document.addEventListener('DOMContentLoaded', () => {
+    loadData();
+    populateSelects();
+    setupDate();
+    renderDashboard();
+    renderSolicitacoes();
+    renderEntregas();
+    renderMateriais();
+    renderLojas();
+    renderClientes();
+});
+
+function setupDate() {
+    const hoje = new Date().toISOString().split('T')[0];
+    document.getElementById('ns-data').value = hoje;
+    document.getElementById('current-date').textContent = new Date().toLocaleDateString('pt-BR');
+}
+
+function populateSelects() {
+    const sc = document.getElementById('ns-cliente');
+    const fc = document.getElementById('filtro-cliente');
+    const rlc = document.getElementById('rel-cliente');
+    const flc = document.getElementById('filtro-loja-cliente');
+    const fmc = document.getElementById('filtro-material-cliente');
+
+    CLIENTES.forEach(c => {
+        sc.add(new Option(c, c));
+        fc.add(new Option(c, c));
+        rlc.add(new Option(c, c));
+        flc.add(new Option(c, c));
+        fmc.add(new Option(c, c));
+    });
+
+    const fll = document.getElementById('filtro-loja');
+    const rll = document.getElementById('rel-loja');
+    LOJAS.forEach(l => {
+        fll.add(new Option(l.nome, l.nome));
+        rll.add(new Option(l.nome, l.nome));
+    });
+}
+
+function onClienteChange() {
+    const cliente = document.getElementById('ns-cliente').value;
+    const lojaSel = document.getElementById('ns-loja');
+    lojaSel.innerHTML = '<option value="">Selecione a loja</option>';
+    if (cliente && LOJAS_POR_CLIENTE[cliente]) {
+        LOJAS_POR_CLIENTE[cliente].forEach(l => {
+            lojaSel.add(new Option(l, l));
+        });
+    } else {
+        lojaSel.add(new Option('Selecione o cliente primeiro', ''));
+    }
+    updateMaterialOptions();
+}
+
+function onTipoChange() {
+    const tipo = document.getElementById('ns-tipo').value;
+    document.getElementById('epi-doc-section').classList.toggle('hidden', tipo !== 'EPI');
+    document.getElementById('material-itens-section').classList.toggle('hidden', tipo !== 'Material');
+    document.getElementById('epi-itens-section').classList.toggle('hidden', tipo !== 'EPI');
+}
+
+// ========== DOCUMENTO EPI PADRÃO ==========
+function baixarDocEPI() {
+    const dataGeracao = new Date().toLocaleDateString('pt-BR');
+    const epiList = [
+        "Luva látex","Luva para jardineiro","Japona Térmica",
+        "Óculos de proteção","Avental de raspa","Calça Térmica",
+        "Máscara de Proteção","Viseira","Luvas térmicas",
+        "Protetor auricular plug ( ) ou concha ( )","Perneira","Cap",
+        "","",""
+    ];
+    const epiRows = [];
+    for (let i = 0; i < epiList.length; i += 3) {
+        const epi1 = epiList[i] || '&nbsp;';
+        const epi2 = epiList[i+1] || '&nbsp;';
+        const epi3 = epiList[i+2] || '&nbsp;';
+        epiRows.push('<tr><td style="border:1px solid #000;padding:3px 5px;font-size:10px">' + epi1 + '</td><td style="border:1px solid #000;padding:3px 5px;font-size:10px;text-align:center">&nbsp;</td><td style="border:1px solid #000;padding:3px 5px;font-size:10px">' + epi2 + '</td><td style="border:1px solid #000;padding:3px 5px;font-size:10px;text-align:center">&nbsp;</td><td style="border:1px solid #000;padding:3px 5px;font-size:10px">' + epi3 + '</td><td style="border:1px solid #000;padding:3px 5px;font-size:10px;text-align:center">&nbsp;</td></tr>');
+    }
+    const botasRows = [];
+    for (let i = 0; i < 17; i++) {
+        botasRows.push('<tr><td style="border:1px solid #000;padding:3px 5px;font-size:10px">&nbsp;</td><td style="border:1px solid #000;padding:3px 5px;font-size:10px">&nbsp;</td><td style="border:1px solid #000;padding:3px 5px;font-size:10px">&nbsp;</td><td style="border:1px solid #000;padding:3px 5px;font-size:10px">&nbsp;</td><td style="border:1px solid #000;padding:3px 5px;font-size:10px">&nbsp;</td><td style="border:1px solid #000;padding:3px 5px;font-size:10px">&nbsp;</td></tr>');
+    }
+    const statesLine = 'ALAGOAS ( &nbsp;) &nbsp;&nbsp;BAHIA ( &nbsp;) &nbsp;&nbsp;CEARÁ ( &nbsp;) &nbsp;&nbsp;MARANHÃO ( &nbsp;) &nbsp;&nbsp;PARAIBA ( &nbsp;) &nbsp;&nbsp;PARÁ ( &nbsp;) &nbsp;&nbsp;PERNAMBUCO ( &nbsp;) &nbsp;&nbsp;PIAUÍ ( &nbsp;) &nbsp;&nbsp;RIO GRANDE DO NORTE ( &nbsp;) &nbsp;&nbsp;SERGIPE ( &nbsp;) &nbsp;&nbsp;AMAPÁ ( &nbsp;) &nbsp;&nbsp;RORAIMA ( &nbsp;) &nbsp;&nbsp;AMAZONAS ( &nbsp;) &nbsp;&nbsp;RONDÔNIA ( &nbsp;)';
+    const htmlContent = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+<head><meta charset='utf-8'><title>Solicitacao de EPI</title>
+<style>
+@page Section1 { size: 841.95pt 595.35pt; margin: 36pt 36pt 36pt 36pt; mso-page-orientation: landscape; }
+div.Section1 { page: Section1; }
+</style>
+</head>
+<body style="font-family:Arial,sans-serif;font-size:10pt;margin:0;padding:0">
+<div class="Section1" style="mso-page-orientation: landscape;">
+<table style="width:100%;border-collapse:collapse">
+<tr><td colspan="6" style="border:1px solid #000;padding:3px 5px;font-size:9px;text-align:center">` + statesLine + `</td></tr>
+<tr><td colspan="6" style="border:1px solid #000;padding:3px 5px;font-size:11px;font-weight:bold;background:#DEEBF6;text-align:center">BOTAS</td></tr>
+<tr>
+<th style="border:1px solid #000;padding:3px 5px;font-size:10px;font-weight:bold;background:#DEEBF6">Nome</th>
+<th style="border:1px solid #000;padding:3px 5px;font-size:10px;font-weight:bold;background:#DEEBF6">Loja</th>
+<th style="border:1px solid #000;padding:3px 5px;font-size:10px;font-weight:bold;background:#DEEBF6">Encarregado</th>
+<th style="border:1px solid #000;padding:3px 5px;font-size:10px;font-weight:bold;background:#DEEBF6">Supervisor</th>
+<th style="border:1px solid #000;padding:3px 5px;font-size:10px;font-weight:bold;background:#DEEBF6">Itens da Solicitação de EPI</th>
+<th style="border:1px solid #000;padding:3px 5px;font-size:10px;font-weight:bold;background:#DEEBF6">Situação ( * )</th>
+</tr>
+` + botasRows.join('') + `
+<tr><td colspan="6" style="border:1px solid #000;padding:3px 5px;font-size:11px;font-weight:bold;background:#DEEBF6;text-align:center">EPIS</td></tr>
+<tr>
+<th style="border:1px solid #000;padding:3px 5px;font-size:10px;font-weight:bold;background:#DEEBF6">Equipamento de Proteção</th>
+<th style="border:1px solid #000;padding:3px 5px;font-size:10px;font-weight:bold;background:#DEEBF6">Quantidade</th>
+<th style="border:1px solid #000;padding:3px 5px;font-size:10px;font-weight:bold;background:#DEEBF6">Equipamento de Proteção</th>
+<th style="border:1px solid #000;padding:3px 5px;font-size:10px;font-weight:bold;background:#DEEBF6">Quantidade</th>
+<th style="border:1px solid #000;padding:3px 5px;font-size:10px;font-weight:bold;background:#DEEBF6">Equipamento de Proteção</th>
+<th style="border:1px solid #000;padding:3px 5px;font-size:10px;font-weight:bold;background:#DEEBF6">Quantidade</th>
+</tr>
+` + epiRows.join('') + `
+<tr><td colspan="6" style="border:1px solid #000;padding:3px 5px;font-size:9px">Observação: A coluna Situação ( * ), é para o setor SST preencher.</td></tr>
+</table>
+<p style="font-size:8pt;color:#666;text-align:center;margin-top:6px">Data de geração: ` + dataGeracao + `</p>
+</div>
+</body>
+</html>`;
+    const blob = new Blob(['\ufeff', htmlContent], { type: 'application/msword' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'Solicitacao_de_EPI_Padrao.doc';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('Documento EPI padrão baixado com sucesso!', 'success');
+}
+
+
+// ========== GERAR ANEXOS PREENCHIDOS AUTOMATICAMENTE ==========
+function gerarAnexoEPI(sol) {
+    const dataGeracao = new Date().toLocaleDateString('pt-BR');
+    const cliente = sol.cliente || '_________________';
+    const loja = sol.loja || '_________________';
+    console.debug('[gerarAnexoEPI] cliente=', cliente, 'itens=', sol.itens ? sol.itens.length : 0);
+    const mapItens = {};
+    if (sol.itens && sol.itens.length) {
+        sol.itens.forEach(i => {
+            if (i.epi) mapItens[i.epi] = i;
+        });
+    }
+    const epiList = [
+        "Luva látex","Luva para jardineiro","Japona Térmica",
+        "Óculos de proteção","Avental de raspa","Calça Térmica",
+        "Máscara de Proteção","Viseira","Luvas térmicas",
+        "Protetor auricular plug ( ) ou concha ( )","Perneira","Cap",
+        "","",""
+    ];
+    const epiRows = [];
+    for (let i = 0; i < epiList.length; i += 3) {
+        const epi1 = epiList[i] || '';
+        const epi2 = epiList[i+1] || '';
+        const epi3 = epiList[i+2] || '';
+        const item1 = mapItens[epi1];
+        const item2 = mapItens[epi2];
+        const item3 = mapItens[epi3];
+        const qtd1 = item1 ? (item1.qtd || '') : '&nbsp;';
+        const qtd2 = item2 ? (item2.qtd || '') : '&nbsp;';
+        const qtd3 = item3 ? (item3.qtd || '') : '&nbsp;';
+        epiRows.push('<tr><td style="border:1px solid #000;padding:3px 5px;font-size:10px">' + (epi1 || '&nbsp;') + '</td><td style="border:1px solid #000;padding:3px 5px;font-size:10px;text-align:center">' + qtd1 + '</td><td style="border:1px solid #000;padding:3px 5px;font-size:10px">' + (epi2 || '&nbsp;') + '</td><td style="border:1px solid #000;padding:3px 5px;font-size:10px;text-align:center">' + qtd2 + '</td><td style="border:1px solid #000;padding:3px 5px;font-size:10px">' + (epi3 || '&nbsp;') + '</td><td style="border:1px solid #000;padding:3px 5px;font-size:10px;text-align:center">' + qtd3 + '</td></tr>');
+    }
+    const itensArr = sol.itens && sol.itens.length ? sol.itens.map(i => (i.epi || i.nome || 'Item') + (i.qtd ? ' x' + i.qtd : '')) : [];
+    const botasRows = [];
+    const totalRows = Math.max(17, itensArr.length);
+    for (let i = 0; i < totalRows; i++) {
+        const itemObj = (sol.itens && sol.itens[i]) ? sol.itens[i] : null;
+        const nome = itemObj ? (itemObj.colaborador || sol.nomeFuncionario || '&nbsp;') : '&nbsp;';
+        const lojaVal = itemObj ? (sol.loja || '&nbsp;') : '&nbsp;';
+        const enc = itemObj ? (sol.encarregado || '&nbsp;') : '&nbsp;';
+        const sup = itemObj ? (sol.supervisor || '&nbsp;') : '&nbsp;';
+        const item = itensArr[i] || '&nbsp;';
+        botasRows.push('<tr><td style="border:1px solid #000;padding:3px 5px;font-size:10px">' + nome + '</td><td style="border:1px solid #000;padding:3px 5px;font-size:10px">' + lojaVal + '</td><td style="border:1px solid #000;padding:3px 5px;font-size:10px">' + enc + '</td><td style="border:1px solid #000;padding:3px 5px;font-size:10px">' + sup + '</td><td style="border:1px solid #000;padding:3px 5px;font-size:10px">' + item + '</td><td style="border:1px solid #000;padding:3px 5px;font-size:10px">&nbsp;</td></tr>');
+    }
+    const htmlContent = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+<head><meta charset='utf-8'><title>Solicitacao de EPI - ${cliente} - ${loja}</title>
+<style>
+@page Section1 { size: 841.95pt 595.35pt; margin: 36pt 36pt 36pt 36pt; mso-page-orientation: landscape; }
+div.Section1 { page: Section1; }
+</style>
+</head>
+<body style="font-family:Arial,sans-serif;font-size:10pt;margin:0;padding:0">
+<div class="Section1" style="mso-page-orientation: landscape;">
+<table style="width:100%;border-collapse:collapse">
+<tr><td colspan="6" style="border:1px solid #000;padding:3px 5px;font-size:9px;text-align:center">ALAGOAS ( &nbsp;) &nbsp;&nbsp;BAHIA ( &nbsp;) &nbsp;&nbsp;CEARÁ ( &nbsp;) &nbsp;&nbsp;MARANHÃO ( &nbsp;) &nbsp;&nbsp;PARAIBA ( &nbsp;) &nbsp;&nbsp;PARÁ ( &nbsp;) &nbsp;&nbsp;PERNAMBUCO ( &nbsp;) &nbsp;&nbsp;PIAUÍ ( &nbsp;) &nbsp;&nbsp;RIO GRANDE DO NORTE ( &nbsp;) &nbsp;&nbsp;SERGIPE ( &nbsp;) &nbsp;&nbsp;AMAPÁ ( &nbsp;) &nbsp;&nbsp;RORAIMA ( &nbsp;) &nbsp;&nbsp;AMAZONAS ( &nbsp;) &nbsp;&nbsp;RONDÔNIA ( &nbsp;)</td></tr>
+<tr><td colspan="6" style="border:1px solid #000;padding:3px 5px;font-size:11px;font-weight:bold;background:#DEEBF6;text-align:center">BOTAS</td></tr>
+<tr>
+<th style="border:1px solid #000;padding:3px 5px;font-size:10px;font-weight:bold;background:#DEEBF6">Nome</th>
+<th style="border:1px solid #000;padding:3px 5px;font-size:10px;font-weight:bold;background:#DEEBF6">Loja</th>
+<th style="border:1px solid #000;padding:3px 5px;font-size:10px;font-weight:bold;background:#DEEBF6">Encarregado</th>
+<th style="border:1px solid #000;padding:3px 5px;font-size:10px;font-weight:bold;background:#DEEBF6">Supervisor</th>
+<th style="border:1px solid #000;padding:3px 5px;font-size:10px;font-weight:bold;background:#DEEBF6">Itens da Solicitação de EPI</th>
+<th style="border:1px solid #000;padding:3px 5px;font-size:10px;font-weight:bold;background:#DEEBF6">Situação ( * )</th>
+</tr>
+` + botasRows.join('') + `
+<tr><td colspan="6" style="border:1px solid #000;padding:3px 5px;font-size:11px;font-weight:bold;background:#DEEBF6;text-align:center">EPIS</td></tr>
+<tr>
+<th style="border:1px solid #000;padding:3px 5px;font-size:10px;font-weight:bold;background:#DEEBF6">Equipamento de Proteção</th>
+<th style="border:1px solid #000;padding:3px 5px;font-size:10px;font-weight:bold;background:#DEEBF6">Quantidade</th>
+<th style="border:1px solid #000;padding:3px 5px;font-size:10px;font-weight:bold;background:#DEEBF6">Equipamento de Proteção</th>
+<th style="border:1px solid #000;padding:3px 5px;font-size:10px;font-weight:bold;background:#DEEBF6">Quantidade</th>
+<th style="border:1px solid #000;padding:3px 5px;font-size:10px;font-weight:bold;background:#DEEBF6">Equipamento de Proteção</th>
+<th style="border:1px solid #000;padding:3px 5px;font-size:10px;font-weight:bold;background:#DEEBF6">Quantidade</th>
+</tr>
+` + epiRows.join('') + `
+<tr><td colspan="6" style="border:1px solid #000;padding:3px 5px;font-size:9px">Observação: A coluna Situação ( * ), é para o setor SST preencher.</td></tr>
+</table>
+<p style="font-size:8pt;color:#666;text-align:center;margin-top:6px">Data de geração: ` + dataGeracao + `</p>
+</div>
+</body>
+</html>`;
+    const blob = new Blob(['\ufeff', htmlContent], { type: 'application/msword' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'Solicitacao_de_EPI_' + cliente + '_' + loja + '.doc';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    return new Promise(resolve => {
+        const reader = new FileReader();
+        reader.onloadend = function() {
+            resolve({ id: Date.now() + '_epi_' + sol.id, nome: 'Solicitacao_de_EPI_' + sol.id + '_' + cliente + '_' + loja + '.doc', tipo: 'application/msword', data: reader.result, categoria: 'Documento EPI Preenchido' });
+        };
+        reader.readAsDataURL(blob);
+    });
+}
+
+
+function gerarAnexoMaterial(sol) {
+    try {
+        const cliente = sol.cliente;
+        const dataGeracao = new Date().toLocaleDateString('pt-BR');
+        console.debug('[gerarAnexoMaterial] cliente=', cliente, 'itens=', sol.itens ? sol.itens.length : 0);
+        let htmlContent = '';
+        let fileName = '';
+        // Helpers para criar linhas apenas com itens solicitados
+        const buildRowsSmartSelf = (itens) => {
+            if (!itens || !itens.length) {
+                return '<tr><td style="border:1px solid #000;padding:4px 6px;font-size:11px">&nbsp;</td><td style="border:1px solid #000;padding:4px 6px;font-size:11px;text-align:center">&nbsp;</td><td style="border:1px solid #000;padding:4px 6px;font-size:11px;text-align:center">UN.</td></tr>';
+            }
+            return itens.map(i => {
+                const qtd = i.qtd || '&nbsp;';
+                return '<tr><td style="border:1px solid #000;padding:4px 6px;font-size:11px;white-space:nowrap">' + (i.material || '') + '</td><td style="border:1px solid #000;padding:4px 6px;font-size:11px;text-align:center;white-space:nowrap">' + qtd + '</td><td style="border:1px solid #000;padding:4px 6px;font-size:11px;text-align:center;white-space:nowrap">UN.</td></tr>';
+            }).join('');
+        };
+        const buildRowsAssai = (itens) => {
+            if (!itens || !itens.length) {
+                return '<tr><td style="border:1px solid #000;padding:4px 6px;font-size:11px;text-align:center">1</td><td style="border:1px solid #000;padding:4px 6px;font-size:11px">&nbsp;</td><td style="border:1px solid #000;padding:4px 6px;font-size:11px">&nbsp;</td><td style="border:1px solid #000;padding:4px 6px;font-size:11px;text-align:center">&nbsp;</td><td style="border:1px solid #000;padding:4px 6px;font-size:11px;text-align:center">peças</td><td style="border:1px solid #000;padding:4px 6px;font-size:11px;text-align:right">&nbsp;</td><td style="border:1px solid #000;padding:4px 6px;font-size:11px;text-align:right">&nbsp;</td></tr>';
+            }
+            let rowNum = 1;
+            return itens.map(i => {
+                const qtd = i.qtd || '&nbsp;';
+                const unit = i.valorUnit ? 'R$ ' + i.valorUnit.toFixed(2).replace('.',',') : '&nbsp;';
+                const total = i.valorUnit ? 'R$ ' + (i.valorUnit * i.qtd).toFixed(2).replace('.',',') : '&nbsp;';
+                return '<tr><td style="border:1px solid #000;padding:4px 6px;font-size:11px;text-align:center;white-space:nowrap">' + (rowNum++) + '</td><td style="border:1px solid #000;padding:4px 6px;font-size:11px;white-space:nowrap">' + (i.material || '') + '</td><td style="border:1px solid #000;padding:4px 6px;font-size:11px;white-space:nowrap">&nbsp;</td><td style="border:1px solid #000;padding:4px 6px;font-size:11px;text-align:center;white-space:nowrap">' + qtd + '</td><td style="border:1px solid #000;padding:4px 6px;font-size:11px;text-align:center;white-space:nowrap">peças</td><td style="border:1px solid #000;padding:4px 6px;font-size:11px;text-align:right;white-space:nowrap">' + unit + '</td><td style="border:1px solid #000;padding:4px 6px;font-size:11px;text-align:right;white-space:nowrap">' + total + '</td></tr>';
+            }).join('');
+        };
+
+        if (cliente === 'Smart Fit') {
+            const rows = buildRowsSmartSelf(sol.itens);
+            htmlContent = `<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8"><style>table{border-collapse:collapse;width:100%}th,td{border:1px solid #000}</style></head><body><table>
+<tr><th colspan="3" style="border:1px solid #000;padding:6px;font-size:13px;font-weight:bold;background:#DEEBF6;text-align:center">SMART FIT</th></tr>
+<tr><th style="border:1px solid #000;padding:4px 6px;font-size:11px;font-weight:bold;background:#DEEBF6;white-space:nowrap">SMART FIT</th><th style="border:1px solid #000;padding:4px 6px;font-size:11px;font-weight:bold;background:#DEEBF6;white-space:nowrap">QTD</th><th style="border:1px solid #000;padding:4px 6px;font-size:11px;font-weight:bold;background:#DEEBF6;white-space:nowrap">REF.</th></tr>
+` + rows + `
+<tr><td colspan="3" style="border:1px solid #000;padding:4px 6px;font-size:10px">Solicitação: ` + sol.id + ` | Loja: ` + sol.loja + ` | Data: ` + dataGeracao + `</td></tr>
+</table></body></html>`;
+            fileName = 'Pedido_Material_SmartFit_' + sol.id + '.xls';
+        } else if (cliente === 'Self Fit') {
+            const rows = buildRowsSmartSelf(sol.itens);
+            htmlContent = `<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8"><style>table{border-collapse:collapse;width:100%}th,td{border:1px solid #000}</style></head><body><table>
+<tr><th colspan="3" style="border:1px solid #000;padding:6px;font-size:13px;font-weight:bold;background:#DEEBF6;text-align:center">SELF FIT</th></tr>
+<tr><th style="border:1px solid #000;padding:4px 6px;font-size:11px;font-weight:bold;background:#DEEBF6;white-space:nowrap">SELF FIT</th><th style="border:1px solid #000;padding:4px 6px;font-size:11px;font-weight:bold;background:#DEEBF6;white-space:nowrap">QTD</th><th style="border:1px solid #000;padding:4px 6px;font-size:11px;font-weight:bold;background:#DEEBF6;white-space:nowrap">REF.</th></tr>
+` + rows + `
+<tr><td style="border:1px solid #000;padding:4px 6px;font-size:11px;font-weight:bold">DATA DO PEDIDO</td><td colspan="2" style="border:1px solid #000;padding:4px 6px;font-size:11px">&nbsp;</td></tr>
+<tr><td style="border:1px solid #000;padding:4px 6px;font-size:11px;font-weight:bold">MÊS DE REFERÊNCIA</td><td colspan="2" style="border:1px solid #000;padding:4px 6px;font-size:11px">&nbsp;</td></tr>
+<tr><td style="border:1px solid #000;padding:4px 6px;font-size:11px;font-weight:bold">SEPARADO</td><td colspan="2" style="border:1px solid #000;padding:4px 6px;font-size:11px">&nbsp;</td></tr>
+<tr><td style="border:1px solid #000;padding:4px 6px;font-size:11px;font-weight:bold">ENVIADO</td><td colspan="2" style="border:1px solid #000;padding:4px 6px;font-size:11px">&nbsp;</td></tr>
+<tr><td colspan="3" style="border:1px solid #000;padding:4px 6px;font-size:10px">Solicitação: ` + sol.id + ` | Loja: ` + sol.loja + ` | Data: ` + dataGeracao + `</td></tr>
+</table></body></html>`;
+            fileName = 'Pedido_Material_SelfFit_' + sol.id + '.xls';
+        } else if (cliente === 'Assaí Atacadista') {
+            const itemRows = buildRowsAssai(sol.itens);
+            htmlContent = `<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8"><style>table{border-collapse:collapse;width:100%}th,td{border:1px solid #000}</style></head><body>
+<table style="width:100%;border-collapse:collapse">
+<tr><td colspan="7" style="border:1px solid #000;padding:6px;font-size:11px;text-align:center;font-weight:bold">R: Sgto Jeter Augusto Pereira N° 02 e 04 - São Paulo - CEP: 02188-070 - E-mail: vendas@thamesjlara.com.br - Site www.thamesjlara.com.br</td></tr>
+<tr><td colspan="7" style="height:10px"></td></tr>
+<tr><td style="border:1px solid #000;padding:4px 6px;font-size:11px;font-weight:bold">Orçamento</td><td colspan="2" style="border:1px solid #000;padding:4px 6px;font-size:11px">At.: Sr.(a): Mendonça</td><td colspan="2" style="border:1px solid #000;padding:4px 6px;font-size:11px">Data: ` + dataGeracao + `</td><td colspan="2" style="border:1px solid #000;padding:4px 6px;font-size:11px">Vendedor: Hélio</td></tr>
+<tr><td colspan="7" style="height:10px"></td></tr>
+<tr><td colspan="2" style="border:1px solid #000;padding:4px 6px;font-size:11px;font-weight:bold">Razão Social</td><td colspan="3" style="border:1px solid #000;padding:4px 6px;font-size:11px">FG Services Eireli - ME</td><td style="border:1px solid #000;padding:4px 6px;font-size:11px;font-weight:bold">CNPJ/CPF</td><td style="border:1px solid #000;padding:4px 6px;font-size:11px">23.585.374/0001-11</td></tr>
+<tr><td colspan="2" style="border:1px solid #000;padding:4px 6px;font-size:11px;font-weight:bold">Endereço</td><td colspan="2" style="border:1px solid #000;padding:4px 6px;font-size:11px">Av. Barão de Vera Cruz, 586 BR 101 Norte</td><td style="border:1px solid #000;padding:4px 6px;font-size:11px;font-weight:bold">Bairro</td><td style="border:1px solid #000;padding:4px 6px;font-size:11px">Cruz de Rebouças</td><td style="border:1px solid #000;padding:4px 6px;font-size:11px;font-weight:bold">Cidade</td></tr>
+<tr><td style="border:1px solid #000;padding:4px 6px;font-size:11px">Igarassu</td><td style="border:1px solid #000;padding:4px 6px;font-size:11px;font-weight:bold">UF</td><td style="border:1px solid #000;padding:4px 6px;font-size:11px">PE</td><td colspan="2" style="border:1px solid #000;padding:4px 6px;font-size:11px;font-weight:bold">CEP</td><td colspan="2" style="border:1px solid #000;padding:4px 6px;font-size:11px">53635-015</td></tr>
+<tr><td colspan="7" style="height:10px"></td></tr>
+<tr><td style="border:1px solid #000;padding:4px 6px;font-size:11px;font-weight:bold">Telefone</td><td colspan="2" style="border:1px solid #000;padding:4px 6px;font-size:11px">(0xx81) 3545-3990</td><td colspan="2" style="border:1px solid #000;padding:4px 6px;font-size:11px;font-weight:bold">E-mail</td><td colspan="2" style="border:1px solid #000;padding:4px 6px;font-size:11px">&nbsp;</td></tr>
+<tr><td colspan="7" style="height:10px"></td></tr>
+<tr><th style="border:1px solid #000;padding:4px 6px;font-size:11px;font-weight:bold;background:#DEEBF6;white-space:nowrap">Item</th><th style="border:1px solid #000;padding:4px 6px;font-size:11px;font-weight:bold;background:#DEEBF6;white-space:nowrap">Descrição</th><th style="border:1px solid #000;padding:4px 6px;font-size:11px;font-weight:bold;background:#DEEBF6;white-space:nowrap">Marca</th><th style="border:1px solid #000;padding:4px 6px;font-size:11px;font-weight:bold;background:#DEEBF6;white-space:nowrap">Qtde</th><th style="border:1px solid #000;padding:4px 6px;font-size:11px;font-weight:bold;background:#DEEBF6;white-space:nowrap">Unid</th><th style="border:1px solid #000;padding:4px 6px;font-size:11px;font-weight:bold;background:#DEEBF6;white-space:nowrap">Valor Unit.</th><th style="border:1px solid #000;padding:4px 6px;font-size:11px;font-weight:bold;background:#DEEBF6;white-space:nowrap">Total</th></tr>
+` + itemRows + `
+<tr><td colspan="7" style="border:1px solid #000;padding:4px 6px;font-size:10px">Solicitação: ` + sol.id + ` | Loja: ` + sol.loja + ` | Data: ` + dataGeracao + `</td></tr>
+</table></body></html>`;
+            fileName = 'Orcamento_Assai_' + sol.id + '.xls';
+        } else {
+            console.debug('[gerarAnexoMaterial] cliente nao mapeado, retornando null');
+            return Promise.resolve(null);
+        }
+        const blob = new Blob(['\ufeff', htmlContent], { type: 'application/vnd.ms-excel' });
+        return new Promise(resolve => {
+            const reader = new FileReader();
+            reader.onloadend = function() {
+                resolve({ nome: fileName, tipo: 'application/vnd.ms-excel', data: reader.result, categoria: 'Planilha Preenchida' });
+            };
+            reader.readAsDataURL(blob);
+        });
+    } catch (err) {
+        console.error('[gerarAnexoMaterial] ERRO:', err);
+        return Promise.resolve(null);
+    }
+}
+
+// ========== ITENS MATERIAL ==========
+
+function adicionarItem() {
+    const cliente = document.getElementById('ns-cliente').value;
+    const container = document.getElementById('itens-container');
+    itemCount++;
+    const row = document.createElement('div');
+    row.className = 'item-row';
+    row.id = 'item-row-' + itemCount;
+    let opts = '<option value="">Selecione</option>';
+    if (cliente && MATERIAIS_POR_CLIENTE[cliente]) {
+        MATERIAIS_POR_CLIENTE[cliente].forEach(m => {
+            opts += '<option value="' + m + '">' + m + '</option>';
+        });
+    }
+    row.innerHTML = '<select class="item-material" required>' + opts + '</select>' +
+        '<input type="number" class="item-qtd" min="1" value="1" required>' +
+        '<input type="text" class="item-valor" placeholder="R$ 0,00" oninput="formatCurrency(this)">' +
+        '<button type="button" class="btn-remove-item" onclick="removerItem(' + itemCount + ')"><i class="fas fa-trash"></i></button>';
+    container.appendChild(row);
+}
+
+function adicionarItemEPI() {
+    const cliente = document.getElementById('ns-cliente').value;
+    const container = document.getElementById('epi-itens-container');
+    itemCount++;
+    const row = document.createElement('div');
+    row.className = 'item-row';
+    row.style.gridTemplateColumns = '1.2fr 1fr 70px 90px 40px';
+    row.id = 'epi-row-' + itemCount;
+    let opts = '<option value="">Selecione</option>';
+    if (cliente && EPIS_POR_CLIENTE[cliente]) {
+        EPIS_POR_CLIENTE[cliente].forEach(e => {
+            opts += '<option value="' + e + '">' + e + '</option>';
+        });
+    } else {
+        EPIS_POR_CLIENTE["Smart Fit"].forEach(e => {
+            opts += '<option value="' + e + '">' + e + '</option>';
+        });
+    }
+    row.innerHTML = '<select class="item-epi" required>' + opts + '</select>' +
+        '<input type="text" class="item-colaborador-epi" placeholder="Nome do colaborador" required>' +
+        '<input type="number" class="item-qtd-epi" min="1" value="1" required>' +
+        '<select class="item-tam-epi"><option value="">Tam</option><option value="P">P</option><option value="M">M</option><option value="G">G</option><option value="GG">GG</option><option value="37">37</option><option value="38">38</option><option value="39">39</option><option value="40">40</option><option value="41">41</option><option value="42">42</option><option value="43">43</option><option value="44">44</option></select>' +
+        '<button type="button" class="btn-remove-item" onclick="removerItemEPI(' + itemCount + ')"><i class="fas fa-trash"></i></button>';
+    container.appendChild(row);
+}
+
+function removerItem(id) {
+    const row = document.getElementById('item-row-' + id);
+    if (row) row.remove();
+}
+
+function removerItemEPI(id) {
+    const row = document.getElementById('epi-row-' + id);
+    if (row) row.remove();
+}
+
+function updateMaterialOptions() {
+    const cliente = document.getElementById('ns-cliente').value;
+    document.querySelectorAll('.item-material').forEach(sel => {
+        const val = sel.value;
+        sel.innerHTML = '<option value="">Selecione</option>';
+        if (cliente && MATERIAIS_POR_CLIENTE[cliente]) {
+            MATERIAIS_POR_CLIENTE[cliente].forEach(m => {
+                sel.add(new Option(m, m));
+            });
+        }
+        sel.value = val;
+    });
+    document.querySelectorAll('.item-epi').forEach(sel => {
+        const val = sel.value;
+        sel.innerHTML = '<option value="">Selecione</option>';
+        const list = (cliente && EPIS_POR_CLIENTE[cliente]) ? EPIS_POR_CLIENTE[cliente] : EPIS_POR_CLIENTE["Smart Fit"];
+        list.forEach(e => {
+            sel.add(new Option(e, e));
+        });
+        sel.value = val;
+    });
+}
+
+function formatCurrency(input) {
+    let v = input.value.replace(/\D/g, '');
+    v = (v / 100).toFixed(2);
+    v = v.replace('.', ',');
+    v = v.replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
+    input.value = v ? 'R$ ' + v : '';
+}
+
+function parseCurrency(val) {
+    if (!val) return 0;
+    return parseFloat(val.replace('R$ ', '').replace(/\./g, '').replace(',', '.')) || 0;
+}
+
+// ========== ANEXOS ==========
+function handleFile(input, tipo) {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        if (tipo === 'outros') {
+            for (let f of input.files) {
+                const r = new FileReader();
+                r.onload = function(ev) {
+                    anexosTemp.outros.push({ nome: f.name, tipo: f.type, data: ev.target.result });
+                    updateAnexoDisplay();
+                };
+                r.readAsDataURL(f);
+            }
+        } else {
+            anexosTemp[tipo] = { nome: file.name, tipo: file.type, data: e.target.result };
+            document.getElementById('nome-' + tipo).textContent = file.name;
+        }
+    };
+    if (tipo !== 'outros') reader.readAsDataURL(file);
+}
+
+function updateAnexoDisplay() {
+    const nomes = anexosTemp.outros.map(a => a.nome).join(', ');
+    document.getElementById('nome-outros').textContent = nomes;
+}
+
+// ========== LOCALSTORAGE ==========
+function loadData() {
+    try {
+        const s = localStorage.getItem('supply_solicitacoes');
+        const e = localStorage.getItem('supply_entregas');
+        if (s) solicitacoes = JSON.parse(s);
+        if (e) entregas = JSON.parse(e);
+        console.debug('[loadData] carregado solicitacoes=', solicitacoes.length, 'entregas=', entregas.length);
+    } catch (err) {
+        console.error('[loadData] ERRO ao carregar:', err);
+        solicitacoes = [];
+        entregas = [];
+    }
+}
+
+function saveData() {
+    try {
+        localStorage.setItem('supply_solicitacoes', JSON.stringify(solicitacoes));
+        localStorage.setItem('supply_entregas', JSON.stringify(entregas));
+        console.debug('[saveData] salvo solicitacoes=', solicitacoes.length, 'entregas=', entregas.length);
+    } catch (err) {
+        console.error('[saveData] ERRO ao salvar (localStorage pode estar cheio):', err);
+        alert('Erro ao salvar dados. O armazenamento local pode estar cheio.');
+    }
+}
+
+function gerarID() {
+    const prefix = 'SOL';
+    const ts = Date.now();
+    const rand = String(Math.floor(Math.random() * 900) + 100); // 3 dígitos aleatórios
+    const num = String(ts).slice(-6) + rand;
+    return prefix + num;
+}
+
+// ========== NAVEGAÇÃO ==========
+function showSection(id) {
+    document.querySelectorAll('.page-section').forEach(el => el.classList.add('hidden'));
+    document.getElementById('sec-' + id).classList.remove('hidden');
+    document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+    const map = { dashboard:0, solicitacoes:1, nova:2, entregas:3, materiais:4, lojas:5, relatorios:6 };
+    document.querySelectorAll('.nav-item')[map[id]||0].classList.add('active');
+    document.getElementById('page-title').textContent = {
+        dashboard:'Dashboard', solicitacoes:'Solicitações', nova:'Nova Solicitação',
+        entregas:'Controle de Entregas', materiais:'Catálogo de Materiais',
+        lojas:'Lojas e Clientes', relatorios:'Relatórios e Downloads'
+    }[id] || 'Dashboard';
+    if (id === 'solicitacoes') renderSolicitacoes();
+    if (id === 'entregas') renderEntregas();
+    if (id === 'materiais') renderMateriais();
+    if (id === 'lojas') { renderLojas(); renderClientes(); }
+    window.scrollTo(0,0);
+}
+
+// ========== SOLICITAÇÕES ==========
+async function salvarSolicitacao(e) {
+    try {
+        e.preventDefault();
+        console.debug('[salvarSolicitacao] Iniciando salvamento...');
+        const tipo = document.getElementById('ns-tipo').value;
+        if (!tipo) { showToast('Selecione o tipo de solicitação.', 'error'); return; }
+        const cliente = document.getElementById('ns-cliente').value;
+        const loja = document.getElementById('ns-loja').value;
+        if (!cliente || !loja) { showToast('Selecione cliente e loja.', 'error'); return; }
+        console.debug('[salvarSolicitacao] tipo=', tipo, 'cliente=', cliente, 'loja=', loja);
+
+        let itens = [];
+        let valorTotal = 0;
+        if (tipo === 'Material') {
+            document.querySelectorAll('#itens-container .item-row').forEach(row => {
+                const mat = row.querySelector('.item-material');
+                const qtd = row.querySelector('.item-qtd');
+                const val = row.querySelector('.item-valor');
+                if (mat && mat.value) {
+                    const v = parseCurrency(val ? val.value : '');
+                    const q = parseInt(qtd ? qtd.value : 1);
+                    itens.push({ material: mat.value, qtd: q, valorUnit: v });
+                    valorTotal += v * q;
+                    console.debug('[salvarSolicitacao] item material:', mat.value, 'qtd=', q, 'val=', v);
+                }
+            });
+        } else if (tipo === 'EPI') {
+            document.querySelectorAll('#epi-itens-container .item-row').forEach(row => {
+                const epi = row.querySelector('.item-epi');
+                const col = row.querySelector('.item-colaborador-epi');
+                const qtd = row.querySelector('.item-qtd-epi');
+                const tam = row.querySelector('.item-tam-epi');
+                if (epi && epi.value) {
+                    const q = parseInt(qtd ? qtd.value : 1);
+                    itens.push({ epi: epi.value, colaborador: col ? col.value : '', qtd: q, tamanho: tam ? tam.value : '' });
+                    console.debug('[salvarSolicitacao] item epi:', epi.value, 'col=', col ? col.value : '', 'qtd=', q, 'tam=', tam ? tam.value : '');
+                }
+            });
+        }
+        console.debug('[salvarSolicitacao] total de itens=', itens.length, 'valorTotal=', valorTotal);
+
+        if ((tipo === 'Material' || tipo === 'EPI') && itens.length === 0) {
+            showToast('Adicione pelo menos um item antes de salvar.', 'error');
+            return;
+        }
+
+        const anexos = [];
+        if (anexosTemp.planilha) anexos.push({ ...anexosTemp.planilha, categoria: 'Planilha' });
+        if (anexosTemp.pagamento) anexos.push({ ...anexosTemp.pagamento, categoria: 'Pagamento' });
+        if (anexosTemp.epi) anexos.push({ ...anexosTemp.epi, categoria: 'Documento EPI' });
+        anexosTemp.outros.forEach(a => anexos.push({ ...a, categoria: 'Outro' }));
+
+        const sol = {
+            id: gerarID(),
+            data: document.getElementById('ns-data').value,
+            cliente,
+            loja,
+            tipo,
+            solicitante: document.getElementById('ns-solicitante').value,
+            nomeFuncionario: document.getElementById('ns-epi-nome').value,
+            encarregado: document.getElementById('ns-epi-encarregado').value,
+            supervisor: document.getElementById('ns-epi-supervisor').value,
+            dataUltimaBota: document.getElementById('ns-epi-data-bota').value,
+            prioridade: document.getElementById('ns-prioridade').value,
+            previsao: document.getElementById('ns-previsao').value,
+            observacoes: document.getElementById('ns-obs').value,
+            itens,
+            valorTotal,
+            anexos,
+            status: 'Pendente',
+            dataCriacao: new Date().toISOString()
+        };
+        console.debug('[salvarSolicitacao] objeto criado id=', sol.id);
+
+        // Gera anexo preenchido automaticamente
+        if (tipo === 'EPI') {
+            try {
+                console.debug('[salvarSolicitacao] gerando anexo EPI...');
+                const anexoEPI = await gerarAnexoEPI(sol);
+                if (anexoEPI) sol.anexos.push(anexoEPI);
+                console.debug('[salvarSolicitacao] anexo EPI gerado');
+            } catch(err) { console.error('[salvarSolicitacao] erro anexo EPI:', err); }
+        } else if (tipo === 'Material') {
+            try {
+                console.debug('[salvarSolicitacao] gerando anexo Material...');
+                const anexoMat = await gerarAnexoMaterial(sol);
+                if (anexoMat) sol.anexos.push(anexoMat);
+                console.debug('[salvarSolicitacao] anexo Material gerado');
+            } catch(err) { console.error('[salvarSolicitacao] erro anexo Material:', err); }
+        }
+
+        solicitacoes.unshift(sol);
+        entregas.push({
+            idSolicitacao: sol.id,
+            loja: sol.loja,
+            tipo: sol.tipo,
+            dataEnvio: '',
+            dataPrevista: sol.previsao,
+            dataEntrega: '',
+            transportadora: '',
+            rastreio: '',
+            status: 'Pendente',
+            observacoes: ''
+        });
+        console.debug('[salvarSolicitacao] solicitacao e entrega adicionadas');
+
+        saveData();
+        resetForm();
+        showToast('Solicitação salva com sucesso!', 'success');
+        showSection('solicitacoes');
+        renderDashboard();
+        console.debug('[salvarSolicitacao] fluxo concluido com sucesso');
+    } catch (err) {
+        console.error('[salvarSolicitacao] ERRO GERAL:', err);
+        showToast('Erro ao salvar solicitação. Veja o console.', 'error');
+    }
+}
+
+function resetForm() {
+    try {
+        console.debug('[resetForm] resetando formulario...');
+        document.getElementById('form-solicitacao').reset();
+        anexosTemp = { planilha: null, pagamento: null, epi: null, outros: [] };
+        itemCount = 0;
+        document.getElementById('itens-container').innerHTML = '<div class="item-row" style="font-weight:600;font-size:12px;color:var(--gray-500);text-transform:uppercase"><span>Material</span><span>Qtd</span><span>Valor Unit.</span><span></span></div>';
+        document.getElementById('epi-itens-container').innerHTML = '<div class="item-row" style="font-weight:600;font-size:12px;color:var(--gray-500);text-transform:uppercase;grid-template-columns:1.2fr 1fr 70px 90px 40px;"><span>EPI</span><span>Colaborador</span><span>Qtd</span><span>Tamanho</span><span></span></div>';
+        document.getElementById('nome-planilha').textContent = '';
+        document.getElementById('nome-pagamento').textContent = '';
+        document.getElementById('nome-epi').textContent = '';
+        document.getElementById('nome-outros').textContent = '';
+        document.getElementById('epi-doc-section').classList.add('hidden');
+        document.getElementById('material-itens-section').classList.add('hidden');
+        document.getElementById('epi-itens-section').classList.add('hidden');
+        onClienteChange();
+        setupDate();
+        console.debug('[resetForm] formulario resetado');
+    } catch (err) {
+        console.error('[resetForm] ERRO:', err);
+    }
+}
+
+function renderSolicitacoes() {
+    const tbody = document.getElementById('lista-solicitacoes');
+    const busca = document.getElementById('filtro-busca').value.toLowerCase();
+    const status = document.getElementById('filtro-status').value;
+    const loja = document.getElementById('filtro-loja').value;
+    const cliente = document.getElementById('filtro-cliente').value;
+    const di = document.getElementById('filtro-data-inicio').value;
+    const df = document.getElementById('filtro-data-fim').value;
+    let list = solicitacoes.filter(s => {
+        if (busca && !`${s.id} ${s.loja} ${s.solicitante}`.toLowerCase().includes(busca)) return false;
+        if (status && s.status !== status) return false;
+        if (loja && s.loja !== loja) return false;
+        if (cliente && s.cliente !== cliente) return false;
+        if (di && s.data < di) return false;
+        if (df && s.data > df) return false;
+        return true;
+    });
+    if (list.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:var(--gray-400);padding:32px">Nenhuma solicitação encontrada.</td></tr>';
+        return;
+    }
+    tbody.innerHTML = list.map(s => {
+        const badge = getBadgeClass(s.status);
+        const anexos = s.anexos && s.anexos.length ? '<span class="badge badge-aprovado">' + s.anexos.length + ' anexo(s)</span>' : '<span style="color:var(--gray-400);font-size:12px">-</span>';
+        return '<tr><td><b>' + s.id + '</b></td><td>' + formatDate(s.data) + '</td><td>' + s.loja + '</td><td>' + s.cliente + '</td><td><span class="badge ' + (s.tipo==="EPI"?"badge-aprovado":"badge-em-transito") + '">' + s.tipo + '</span></td><td>' + s.solicitante + '</td><td>' + (s.itens ? s.itens.length : 0) + '</td><td>' + formatCurrencyValue(s.valorTotal) + '</td><td><span class="badge ' + badge + '">' + s.status + '</span></td><td>' + anexos + '</td><td><button class="btn btn-sm btn-secondary" onclick="verDetalhes(\'' + s.id + '\')" title="Ver detalhes"><i class="fas fa-eye"></i></button> <button class="btn btn-sm btn-primary" onclick="editarStatus(\'' + s.id + '\')" title="Editar status"><i class="fas fa-tag"></i></button> <button class="btn btn-sm btn-warning" onclick="editarSolicitacao(\'' + s.id + '\')" title="Editar solicitação"><i class="fas fa-edit"></i></button> <button class="btn btn-sm btn-danger" onclick="excluirSolicitacao(\'' + s.id + '\')" title="Excluir"><i class="fas fa-trash"></i></button></td></tr>';
+    }).join('');
+}
+
+function getBadgeClass(status) {
+    return { 'Pendente':'badge-pendente', 'Aprovado':'badge-aprovado', 'Em Trânsito':'badge-em-transito', 'Entregue':'badge-entregue', 'Cancelado':'badge-cancelado' }[status] || 'badge-pendente';
+}
+
+function formatDate(d) {
+    if (!d) return '-';
+    const [y,m,day] = d.split('-');
+    return day + '/' + m + '/' + y;
+}
+
+function formatCurrencyValue(v) {
+    if (!v) return 'R$ 0,00';
+    return 'R$ ' + v.toFixed(2).replace('.', ',').replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
+}
+
+function verDetalhes(id) {
+    const s = solicitacoes.find(x => x.id === id);
+    if (!s) return;
+    const body = document.getElementById('modal-detalhes-body');
+    let itensHtml = '';
+    if (s.tipo === 'Material' && s.itens && s.itens.length) {
+        itensHtml = '<h4 style="margin:16px 0 8px;font-size:14px">Itens Solicitados</h4><table style="width:100%;font-size:13px"><thead><tr style="background:var(--gray-50)"><th>Material</th><th>Qtd</th><th>Valor Unit.</th><th>Total</th></tr></thead><tbody>' +
+        s.itens.map(i => '<tr><td>' + i.material + '</td><td>' + i.qtd + '</td><td>' + formatCurrencyValue(i.valorUnit) + '</td><td>' + formatCurrencyValue(i.valorUnit * i.qtd) + '</td></tr>').join('') +
+        '</tbody></table>';
+    } else if (s.tipo === 'EPI' && s.itens && s.itens.length) {
+        itensHtml = '<h4 style="margin:16px 0 8px;font-size:14px">EPIs Solicitados</h4><table style="width:100%;font-size:13px"><thead><tr style="background:var(--gray-50)"><th>EPI</th><th>Colaborador</th><th>Qtd</th><th>Tamanho</th></tr></thead><tbody>' +
+        s.itens.map(i => '<tr><td>' + i.epi + '</td><td>' + (i.colaborador || '-') + '</td><td>' + i.qtd + '</td><td>' + (i.tamanho || '-') + '</td></tr>').join('') +
+        '</tbody></table>';
+    }
+    let anexosHtml = '';
+    if (s.anexos && s.anexos.length) {
+        anexosHtml = '<h4 style="margin:16px 0 8px;font-size:14px">Anexos</h4><div class="attachment-list">' +
+        s.anexos.map(a => '<a href="' + a.data + '" download="' + a.nome + '" class="attachment-chip"><i class="fas fa-file"></i> ' + a.nome + '</a>').join('') + '</div>';
+    }
+    body.innerHTML = '<div class="detail-grid"><div class="detail-item"><label>ID</label><span>' + s.id + '</span></div><div class="detail-item"><label>Data</label><span>' + formatDate(s.data) + '</span></div><div class="detail-item"><label>Cliente</label><span>' + s.cliente + '</span></div><div class="detail-item"><label>Loja</label><span>' + s.loja + '</span></div><div class="detail-item"><label>Tipo</label><span>' + s.tipo + '</span></div><div class="detail-item"><label>Solicitante</label><span>' + s.solicitante + '</span></div><div class="detail-item"><label>Prioridade</label><span>' + s.prioridade + '</span></div><div class="detail-item"><label>Status</label><span class="badge ' + getBadgeClass(s.status) + '">' + s.status + '</span></div><div class="detail-item"><label>Previsão de Entrega</label><span>' + formatDate(s.previsao) + '</span></div><div class="detail-item"><label>Valor Total</label><span>' + formatCurrencyValue(s.valorTotal) + '</span></div></div><div class="detail-item" style="margin-top:12px"><label>Observações</label><span style="font-weight:400">' + (s.observacoes || '-') + '</span></div>' + itensHtml + anexosHtml;
+    openModal('modal-detalhes');
+}
+
+function editarStatus(id) {
+    const s = solicitacoes.find(x => x.id === id);
+    if (!s) return;
+    const novo = prompt('Novo status: Pendente, Aprovado, Em Trânsito, Entregue, Cancelado', s.status);
+    if (!novo) return;
+    s.status = novo;
+    const ent = entregas.find(e => e.idSolicitacao === id);
+    if (ent) ent.status = novo;
+    saveData();
+    renderSolicitacoes();
+    renderEntregas();
+    renderDashboard();
+    showToast('Status atualizado!', 'success');
+}
+
+function editarSolicitacao(id) {
+    const s = solicitacoes.find(x => x.id === id);
+    if (!s) { showToast('Solicitação não encontrada.', 'error'); return; }
+    // Preenche o formulario
+    document.getElementById('ns-cliente').value = s.cliente;
+    onClienteChange();
+    document.getElementById('ns-loja').value = s.loja;
+    document.getElementById('ns-tipo').value = s.tipo;
+    onTipoChange();
+    document.getElementById('ns-solicitante').value = s.solicitante || '';
+    document.getElementById('ns-data').value = s.data || '';
+    document.getElementById('ns-prioridade').value = s.prioridade || 'Normal';
+    document.getElementById('ns-previsao').value = s.previsao || '';
+    document.getElementById('ns-obs').value = s.observacoes || '';
+    // Limpa e recria itens
+    document.getElementById('itens-container').innerHTML = '<div class="item-row" style="font-weight:600;font-size:12px;color:var(--gray-500);text-transform:uppercase"><span>Material</span><span>Qtd</span><span>Valor Unit.</span><span></span></div>';
+    document.getElementById('epi-itens-container').innerHTML = '<div class="item-row" style="font-weight:600;font-size:12px;color:var(--gray-500);text-transform:uppercase;grid-template-columns:1.2fr 1fr 70px 90px 40px;"><span>EPI</span><span>Colaborador</span><span>Qtd</span><span>Tamanho</span><span></span></div>';
+    itemCount = 0;
+    if (s.tipo === 'Material' && s.itens && s.itens.length) {
+        s.itens.forEach(i => {
+            itemCount++;
+            const row = document.createElement('div');
+            row.className = 'item-row';
+            row.id = 'item-row-' + itemCount;
+            let opts = '<option value="">Selecione</option>';
+            if (s.cliente && MATERIAIS_POR_CLIENTE[s.cliente]) {
+                MATERIAIS_POR_CLIENTE[s.cliente].forEach(m => {
+                    opts += '<option value="' + m + '"' + (m === i.material ? ' selected' : '') + '>' + m + '</option>';
+                });
+            }
+            const valStr = i.valorUnit ? ('R$ ' + i.valorUnit.toFixed(2).replace('.',',')) : '';
+            row.innerHTML = '<select class="item-material" required>' + opts + '</select>' +
+                '<input type="number" class="item-qtd" min="1" value="' + (i.qtd || 1) + '" required>' +
+                '<input type="text" class="item-valor" placeholder="R$ 0,00" value="' + valStr + '" oninput="formatCurrency(this)">' +
+                '<button type="button" class="btn-remove-item" onclick="removerItem(' + itemCount + ')"><i class="fas fa-trash"></i></button>';
+            document.getElementById('itens-container').appendChild(row);
+        });
+    } else if (s.tipo === 'EPI' && s.itens && s.itens.length) {
+        s.itens.forEach(i => {
+            itemCount++;
+            const row = document.createElement('div');
+            row.className = 'item-row';
+            row.style.gridTemplateColumns = '1.2fr 1fr 70px 90px 40px';
+            row.id = 'epi-row-' + itemCount;
+            let opts = '<option value="">Selecione</option>';
+            const epiList = (s.cliente && EPIS_POR_CLIENTE[s.cliente]) ? EPIS_POR_CLIENTE[s.cliente] : EPIS_POR_CLIENTE["Smart Fit"];
+            epiList.forEach(e => {
+                opts += '<option value="' + e + '"' + (e === i.epi ? ' selected' : '') + '>' + e + '</option>';
+            });
+            row.innerHTML = '<select class="item-epi" required>' + opts + '</select>' +
+                '<input type="text" class="item-colaborador-epi" placeholder="Nome do colaborador" value="' + (i.colaborador || '') + '" required>' +
+                '<input type="number" class="item-qtd-epi" min="1" value="' + (i.qtd || 1) + '" required>' +
+                '<select class="item-tam-epi"><option value="">Tam</option><option value="P"' + (i.tamanho==='P'?' selected':'') + '>P</option><option value="M"' + (i.tamanho==='M'?' selected':'') + '>M</option><option value="G"' + (i.tamanho==='G'?' selected':'') + '>G</option><option value="GG"' + (i.tamanho==='GG'?' selected':'') + '>GG</option><option value="37"' + (i.tamanho==='37'?' selected':'') + '>37</option><option value="38"' + (i.tamanho==='38'?' selected':'') + '>38</option><option value="39"' + (i.tamanho==='39'?' selected':'') + '>39</option><option value="40"' + (i.tamanho==='40'?' selected':'') + '>40</option><option value="41"' + (i.tamanho==='41'?' selected':'') + '>41</option><option value="42"' + (i.tamanho==='42'?' selected':'') + '>42</option><option value="43"' + (i.tamanho==='43'?' selected':'') + '>43</option><option value="44"' + (i.tamanho==='44'?' selected':'') + '>44</option></select>' +
+                '<button type="button" class="btn-remove-item" onclick="removerItemEPI(' + itemCount + ')"><i class="fas fa-trash"></i></button>';
+            document.getElementById('epi-itens-container').appendChild(row);
+        });
+    }
+    // Remove a solicitacao antiga para ser substituida no salvamento
+    solicitacoes = solicitacoes.filter(x => x.id !== id);
+    const entIdx = entregas.findIndex(e => e.idSolicitacao === id);
+    if (entIdx >= 0) entregas.splice(entIdx, 1);
+    showSection('nova-solicitacao');
+    showToast('Edite a solicitação e clique em Salvar.', 'info');
+}
+
+function excluirSolicitacao(id) {
+    if (!confirm('Tem certeza que deseja excluir a solicitação ' + id + '?')) return;
+    solicitacoes = solicitacoes.filter(x => x.id !== id);
+    entregas = entregas.filter(e => e.idSolicitacao !== id);
+    saveData();
+    renderSolicitacoes();
+    renderEntregas();
+    renderDashboard();
+    showToast('Solicitação excluída!', 'success');
+}
+
+// ========== ENTREGAS ==========
+function renderEntregas() {
+    const tbody = document.getElementById('lista-entregas');
+    const busca = document.getElementById('filtro-entrega-busca').value.toLowerCase();
+    const status = document.getElementById('filtro-entrega-status').value;
+    let list = entregas.filter(e => {
+        if (busca && !(e.idSolicitacao + ' ' + e.loja).toLowerCase().includes(busca)) return false;
+        if (status && e.status !== status) return false;
+        return true;
+    });
+    if (list.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--gray-400);padding:32px">Nenhuma entrega encontrada.</td></tr>';
+        return;
+    }
+    tbody.innerHTML = list.map(e => '<tr><td><b>' + e.idSolicitacao + '</b></td><td>' + e.loja + '</td><td><span class="badge ' + (e.tipo==="EPI"?"badge-aprovado":"badge-em-transito") + '">' + e.tipo + '</span></td><td>' + formatDate(e.dataEnvio) + '</td><td>' + formatDate(e.dataPrevista) + '</td><td>' + formatDate(e.dataEntrega) + '</td><td>' + (e.transportadora || '-') + '</td><td>' + (e.rastreio || '-') + '</td><td><span class="badge ' + getBadgeClass(e.status) + '">' + e.status + '</span></td><td><button class="btn btn-sm btn-primary" onclick="abrirEntrega(\'' + e.idSolicitacao + '\')"><i class="fas fa-edit"></i></button></td></tr>').join('');
+}
+
+function abrirEntrega(idSolic) {
+    const e = entregas.find(x => x.idSolicitacao === idSolic);
+    if (!e) return;
+    document.getElementById('ent-id-solic').value = idSolic;
+    document.getElementById('ent-status').value = e.status;
+    document.getElementById('ent-data-envio').value = e.dataEnvio;
+    document.getElementById('ent-data-prevista').value = e.dataPrevista;
+    document.getElementById('ent-data-entrega').value = e.dataEntrega;
+    document.getElementById('ent-transportadora').value = e.transportadora;
+    document.getElementById('ent-rastreio').value = e.rastreio;
+    document.getElementById('ent-obs').value = e.observacoes;
+    openModal('modal-entrega');
+}
+
+function salvarEntrega(e) {
+    e.preventDefault();
+    const idSolic = document.getElementById('ent-id-solic').value;
+    const ent = entregas.find(x => x.idSolicitacao === idSolic);
+    if (!ent) return;
+    ent.status = document.getElementById('ent-status').value;
+    ent.dataEnvio = document.getElementById('ent-data-envio').value;
+    ent.dataPrevista = document.getElementById('ent-data-prevista').value;
+    ent.dataEntrega = document.getElementById('ent-data-entrega').value;
+    ent.transportadora = document.getElementById('ent-transportadora').value;
+    ent.rastreio = document.getElementById('ent-rastreio').value;
+    ent.observacoes = document.getElementById('ent-obs').value;
+    const sol = solicitacoes.find(s => s.id === idSolic);
+    if (sol) sol.status = ent.status;
+    saveData();
+    closeModal('modal-entrega');
+    renderEntregas();
+    renderSolicitacoes();
+    renderDashboard();
+    showToast('Entrega atualizada!', 'success');
+}
+
+// ========== MATERIAIS ==========
+function renderMateriais() {
+    const cliente = document.getElementById('filtro-material-cliente').value;
+    const busca = document.getElementById('filtro-material').value.toLowerCase();
+    const tbody = document.getElementById('lista-materiais');
+    let list = MATERIAIS.filter(m => {
+        if (cliente && m.cliente !== cliente) return false;
+        if (busca && !m.nome.toLowerCase().includes(busca)) return false;
+        return true;
+    });
+    tbody.innerHTML = list.map((m, i) => '<tr><td>' + (i+1) + '</td><td>' + m.nome + '</td><td>' + m.cliente + '</td><td>' + m.categoria + '</td></tr>').join('');
+}
+
+// ========== LOJAS E CLIENTES ==========
+function renderLojas() {
+    const cliente = document.getElementById('filtro-loja-cliente').value;
+    const busca = document.getElementById('filtro-loja-lista').value.toLowerCase();
+    const tbody = document.getElementById('lista-lojas');
+    document.getElementById('count-lojas').textContent = LOJAS.length + ' lojas';
+    let list = LOJAS.filter(l => {
+        if (cliente && l.cliente !== cliente) return false;
+        if (busca && !l.nome.toLowerCase().includes(busca)) return false;
+        return true;
+    });
+    tbody.innerHTML = list.map((l, i) => '<tr><td>' + (i+1) + '</td><td>' + l.nome + '</td><td><span class="badge badge-aprovado">' + l.cliente + '</span></td></tr>').join('');
+}
+
+function renderClientes() {
+    const tbody = document.getElementById('lista-clientes');
+    document.getElementById('count-clientes').textContent = CLIENTES.length + ' clientes';
+    tbody.innerHTML = CLIENTES.map((c, i) => '<tr><td>' + (i+1) + '</td><td><b>' + c + '</b></td></tr>').join('');
+}
+
+// ========== DASHBOARD ==========
+function renderDashboard() {
+    document.getElementById('dash-total').textContent = solicitacoes.length;
+    document.getElementById('dash-pendentes').textContent = solicitacoes.filter(s => s.status === 'Pendente').length;
+    document.getElementById('dash-transito').textContent = solicitacoes.filter(s => s.status === 'Em Trânsito').length;
+    document.getElementById('dash-entregues').textContent = solicitacoes.filter(s => s.status === 'Entregue').length;
+    const tbody = document.getElementById('dash-recentes');
+    const recentes = solicitacoes.slice(0, 5);
+    if (recentes.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--gray-400);padding:24px">Nenhuma solicitação ainda.</td></tr>';
+        return;
+    }
+    tbody.innerHTML = recentes.map(s => '<tr><td><b>' + s.id + '</b></td><td>' + formatDate(s.data) + '</td><td>' + s.loja + '</td><td><span class="badge ' + (s.tipo==="EPI"?"badge-aprovado":"badge-em-transito") + '">' + s.tipo + '</span></td><td>' + s.solicitante + '</td><td>' + (s.itens ? s.itens.length : 0) + '</td><td>' + formatCurrencyValue(s.valorTotal) + '</td><td><span class="badge ' + getBadgeClass(s.status) + '">' + s.status + '</span></td><td><button class="btn btn-sm btn-secondary" onclick="verDetalhes(\'' + s.id + '\')"><i class="fas fa-eye"></i></button></td></tr>').join('');
+}
+
+// ========== RELATÓRIOS ==========
+function exportarSolicitacoesCSV() {
+    if (!solicitacoes.length) { showToast('Nenhuma solicitação para exportar.', 'error'); return; }
+    const headers = ['ID','Data','Cliente','Loja','Tipo','Solicitante','Prioridade','Status','Previsao','Observacoes','ValorTotal','Itens','Anexos'];
+    const rows = solicitacoes.map(s => [s.id, s.data, s.cliente, s.loja, s.tipo, s.solicitante, s.prioridade, s.status, s.previsao||'', '"' + (s.observacoes||'').replace(/"/g,'""') + '"', s.valorTotal||0, s.itens ? s.itens.map(i=>i.material + '(' + i.qtd + ')').join('; ') : '', s.anexos ? s.anexos.length : 0]);
+    downloadCSV('solicitacoes.csv', [headers, ...rows]);
+    showToast('CSV exportado com sucesso!', 'success');
+}
+
+function exportarEntregasCSV() {
+    if (!entregas.length) { showToast('Nenhuma entrega para exportar.', 'error'); return; }
+    const headers = ['IDSolicitacao','Loja','Tipo','DataEnvio','DataPrevista','DataEntrega','Transportadora','Rastreio','Status','Observacoes'];
+    const rows = entregas.map(e => [e.idSolicitacao, e.loja, e.tipo, e.dataEnvio||'', e.dataPrevista||'', e.dataEntrega||'', e.transportadora||'', e.rastreio||'', e.status, '"' + (e.observacoes||'').replace(/"/g,'""') + '"']);
+    downloadCSV('entregas.csv', [headers, ...rows]);
+    showToast('CSV exportado com sucesso!', 'success');
+}
+
+function exportarMateriaisCSV() {
+    const headers = ['ID','Descricao','Cliente','Categoria'];
+    const rows = MATERIAIS.map(m => [m.id, m.nome, m.cliente, m.categoria]);
+    downloadCSV('materiais.csv', [headers, ...rows]);
+    showToast('CSV exportado com sucesso!', 'success');
+}
+
+function gerarRelatorioPersonalizado() {
+    const di = document.getElementById('rel-data-inicio').value;
+    const df = document.getElementById('rel-data-fim').value;
+    const cl = document.getElementById('rel-cliente').value;
+    const lj = document.getElementById('rel-loja').value;
+    const st = document.getElementById('rel-status').value;
+    const tp = document.getElementById('rel-tipo').value;
+    let list = solicitacoes.filter(s => {
+        if (di && s.data < di) return false;
+        if (df && s.data > df) return false;
+        if (cl && s.cliente !== cl) return false;
+        if (lj && s.loja !== lj) return false;
+        if (st && s.status !== st) return false;
+        if (tp && s.tipo !== tp) return false;
+        return true;
+    });
+    if (!list.length) { showToast('Nenhum resultado para o filtro selecionado.', 'error'); return; }
+    const headers = ['ID','Data','Cliente','Loja','Tipo','Solicitante','Prioridade','Status','ValorTotal'];
+    const rows = list.map(s => [s.id, s.data, s.cliente, s.loja, s.tipo, s.solicitante, s.prioridade, s.status, s.valorTotal||0]);
+    downloadCSV('relatorio_personalizado.csv', [headers, ...rows]);
+    showToast('Relatório gerado com sucesso!', 'success');
+}
+
+function downloadCSV(filename, rows) {
+    const csv = rows.map(r => r.join(';')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+// ========== MODAL ==========
+function openModal(id) { document.getElementById(id).classList.add('active'); }
+function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+// ========== TOAST ==========
+function showToast(msg, type) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast show ' + type;
+    setTimeout(() => t.classList.remove('show'), 3000);
+}
+</script>
+</body>
+</html>"""
+    st.components.v1.html(HTML_COMPRAS, height=900, scrolling=True)
