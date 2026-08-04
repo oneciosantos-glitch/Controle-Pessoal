@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 try:
     import matplotlib.pyplot as plt
     MATPLOT = True
@@ -889,8 +890,8 @@ if "afastamentos_verificado" not in st.session_state:
     st.session_state["afastamentos_verificado"] = True
 
 # ⚠️ LINHA OBRIGATÓRIA: CRIA TODAS AS ABAS ANTES DE USÁ-LAS
-aba1, aba2, aba3, aba4, aba5, aba6, aba7, aba8, aba9, aba10, aba11 = st.tabs([
-    "Cadastro", "Painel", "Prazos e Férias", "Histórico", "Relatórios", "📎 Documentos", "⚙️ Lojas e Cargos", "💰 CONTROLE DE DIÁRIAS", "🗺️ GUIA VIAGEM", "💾 Backup", "🌐 Tradutor"
+aba1, aba2, aba3, aba4, aba5, aba6, aba7, aba8, aba9, aba10, aba11, aba12 = st.tabs([
+    "Cadastro", "Painel", "Prazos e Férias", "Histórico", "Relatórios", "📎 Documentos", "⚙️ Lojas e Cargos", "💰 CONTROLE DE DIÁRIAS", "🗺️ GUIA VIAGEM", "💾 Backup", "🌐 Tradutor", "🛒 Compras"
 ])
 
 
@@ -3329,3 +3330,19 @@ with aba11:
                 st.session_state["stt_cod_idioma_audio_atual"] = "pt"
                 st.session_state["stt_ultimo_audio_bytes"] = None
                 st.rerun()
+
+
+# ====================== ABA 12: SISTEMA DE COMPRAS ======================
+with aba12:
+    st.subheader("🛒 SISTEMA DE COMPRAS E ENTREGAS")
+    st.info("Módulo completo de controle de compras, solicitações e entregas.")
+
+    # Carrega o sistema de compras HTML completo
+    html_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sistema_compras.html")
+    if os.path.exists(html_path):
+        with open(html_path, 'r', encoding='utf-8') as f_html:
+            html_compras = f_html.read()
+        st.components.v1.html(html_compras, height=900, scrolling=True)
+    else:
+        st.error("❌ Arquivo sistema_compras.html não encontrado. Verifique se o arquivo está na mesma pasta do app_rh.py.")
+        st.info(f"Caminho esperado: {html_path}")
