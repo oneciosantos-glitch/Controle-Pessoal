@@ -211,6 +211,8 @@ def init_session_state():
         st.session_state["compras_entregas"] = []
     if "compras_page" not in st.session_state:
         st.session_state["compras_page"] = "Dashboard"
+    if "nav_compras" not in st.session_state:
+        st.session_state["nav_compras"] = "Dashboard"
     if "compras_edit_id" not in st.session_state:
         st.session_state["compras_edit_id"] = None
     if "compras_nova_itens_material" not in st.session_state:
@@ -224,6 +226,7 @@ def init_session_state():
 def switch_page(page):
     st.session_state["compras_page"] = page
     st.session_state["compras_edit_id"] = None
+    st.session_state["nav_compras"] = page
     st.rerun()
 
 
@@ -507,11 +510,13 @@ def page_solicitacoes():
                         if st.button("👁️", key=f"ver_{s['id']}"):
                             st.session_state["compras_ver_id"] = s["id"]
                             st.session_state["compras_page"] = "Detalhes"
+                            st.session_state["nav_compras"] = "Detalhes"
                             st.rerun()
                     with c_b:
                         if st.button("✏️", key=f"edit_{s['id']}"):
                             st.session_state["compras_edit_id"] = s["id"]
                             st.session_state["compras_page"] = "Nova Solicitação"
+                            st.session_state["nav_compras"] = "Nova Solicitação"
                             st.rerun()
                     with c_c:
                         if st.button("🗑️", key=f"del_{s['id']}"):
@@ -535,10 +540,6 @@ def page_solicitacoes():
             st.download_button("📥 Exportar CSV", data=csv_buffer.getvalue().encode("utf-8"), file_name="solicitacoes.csv", mime="text/csv")
     else:
         st.info("Nenhuma solicitação encontrada.")
-
-    st.markdown("---")
-    if st.button("➕ Nova Solicitação", type="primary", key="btn_nova_sol_solicitacoes"):
-        switch_page("Nova Solicitação")
 
 
 def page_nova_solicitacao():
@@ -750,6 +751,7 @@ def page_nova_solicitacao():
         st.session_state["compras_edit_loaded"] = False
         st.success("Solicitação salva com sucesso!")
         st.session_state["compras_page"] = "Solicitações"
+        st.session_state["nav_compras"] = "Solicitações"
         st.rerun()
 
 
@@ -816,6 +818,7 @@ def page_detalhes():
 
     if st.button("🔙 Voltar"):
         st.session_state["compras_page"] = "Solicitações"
+        st.session_state["nav_compras"] = "Solicitações"
         st.rerun()
 
 
