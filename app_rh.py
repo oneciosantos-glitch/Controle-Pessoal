@@ -23,6 +23,7 @@ GS_ENABLED = False
 gc = None
 GS_ID_FUNCIONARIOS = None
 GS_ID_DIARIAS = None
+GS_ID_COMPRAS = None
 
 try:
     import gspread
@@ -37,7 +38,8 @@ try:
         gc = gspread.authorize(creds)
         GS_ID_FUNCIONARIOS = st.secrets.get("gsheets", {}).get("id_funcionarios", "")
         GS_ID_DIARIAS = st.secrets.get("gsheets", {}).get("id_diarias", "")
-        if GS_ID_FUNCIONARIOS and GS_ID_DIARIAS:
+        GS_ID_COMPRAS = st.secrets.get("gsheets", {}).get("id_compras", "")
+        if GS_ID_FUNCIONARIOS or GS_ID_DIARIAS or GS_ID_COMPRAS:
             GS_ENABLED = True
 except Exception:
     pass
@@ -206,7 +208,18 @@ def formatar_moeda(v):
 
 def init_session_state():
     if "compras_solicitacoes" not in st.session_state:
-        st.session_state["compras_solicitacoes"] = []
+        # Tenta carregar do Google Sheets
+        if GS_ENABLED and GS_ID_COMPRAS:
+            try:
+                sols, ents = _carregar_compras_gs()
+                st.session_state["compras_solicitacoes"] = sols
+                st.session_state["compras_entregas"] = ents
+            except Exception:
+                st.session_state["compras_solicitacoes"] = []
+                st.session_state["compras_entregas"] = []
+        else:
+            st.session_state["compras_solicitacoes"] = []
+            st.session_state["compras_entregas"] = []
     if "compras_entregas" not in st.session_state:
         st.session_state["compras_entregas"] = []
     if "compras_page" not in st.session_state:
@@ -219,6 +232,8 @@ def init_session_state():
         st.session_state["compras_nova_itens_epi"] = []
     if "compras_form_reset" not in st.session_state:
         st.session_state["compras_form_reset"] = False
+    if "compras_gs_loaded" not in st.session_state:
+        st.session_state["compras_gs_loaded"] = True
 
 
 def switch_page(page):
@@ -446,6 +461,22 @@ def page_dashboard():
         switch_page("Nova Solicitação")
 
 
+
+def _salvar_compras_automatico():
+    """Salva automaticamente o estado atual do módulo de compras no Google Sheets."""
+    if not GS_ENABLED or not GS_ID_COMPRAS:
+        return
+    try:
+        _salvar_compras_gs(
+            st.session_state.get("compras_solicitacoes", []),
+            st.session_state.get("compras_entregas", [])
+        )
+    except Exception:
+        pass  # silencia falhas de salvamento automático
+
+
+# Inicialização Google Sheets: garante que abas existam
+
 def page_solicitacoes():
     st.markdown("### 📋 Todas as Solicitações")
 
@@ -519,6 +550,7 @@ def page_solicitacoes():
                         if st.button("🗑️", key=f"del_{s['id']}"):
                             st.session_state["compras_solicitacoes"] = [x for x in sols if x["id"] != s["id"]]
                             st.session_state["compras_entregas"] = [e for e in st.session_state["compras_entregas"] if e.get("idSolicitacao") != s["id"]]
+                            _salvar_compras_automatico()
                             st.success("Excluído!")
                             st.rerun()
 
@@ -566,11 +598,23 @@ def page_nova_solicitacao():
         with c4:
             solicitante = st.text_input("Solicitante *", value=edit_sol.get("solicitante","") if edit_sol else "")
         with c5:
-            data_sol = st.date_input("Data", value=datetime.strptime(edit_sol["data"], "%Y-%m-%d").date() if edit_sol and edit_sol.get("data") else date.today())
+            data_sol_val = None
+            if edit_sol and edit_sol.get("data"):
+                try:
+                    data_sol_val = datetime.strptime(edit_sol["data"], "%Y-%m-%d").date()
+                except Exception:
+                    data_sol_val = datetime.strptime(_normalizar_data_iso(edit_sol["data"]), "%Y-%m-%d").date() if _normalizar_data_iso(edit_sol["data"]) else date.today()
+            data_sol = st.date_input("Data", value=data_sol_val if data_sol_val else date.today())
         with c6:
             prioridade = st.selectbox("Prioridade", PRIORIDADES, index=PRIORIDADES.index(edit_sol["prioridade"]) if edit_sol and edit_sol.get("prioridade") in PRIORIDADES else 0)
 
-        previsao = st.date_input("Previsão de Entrega", value=datetime.strptime(edit_sol["previsao"], "%Y-%m-%d").date() if edit_sol and edit_sol.get("previsao") else date.today())
+        previsao_val = None
+        if edit_sol and edit_sol.get("previsao"):
+            try:
+                previsao_val = datetime.strptime(edit_sol["previsao"], "%Y-%m-%d").date()
+            except Exception:
+                previsao_val = datetime.strptime(_normalizar_data_iso(edit_sol["previsao"]), "%Y-%m-%d").date() if _normalizar_data_iso(edit_sol["previsao"]) else date.today()
+        previsao = st.date_input("Previsão de Entrega", value=previsao_val if previsao_val else date.today())
         observacoes = st.text_area("Observações", value=edit_sol.get("observacoes","") if edit_sol else "")
 
         # Campos específicos EPI
@@ -584,7 +628,14 @@ def page_nova_solicitacao():
                 encarregado = st.text_input("Encarregado", value=edit_sol.get("encarregado","") if edit_sol else "")
             with c9:
                 supervisor = st.text_input("Supervisor", value=edit_sol.get("supervisor","") if edit_sol else "")
-            data_bota = st.date_input("Data Última Bota", value=datetime.strptime(edit_sol["dataUltimaBota"], "%Y-%m-%d").date() if edit_sol and edit_sol.get("dataUltimaBota") else None)
+            data_bota_val = None
+            if edit_sol and edit_sol.get("dataUltimaBota"):
+                try:
+                    data_bota_val = datetime.strptime(edit_sol["dataUltimaBota"], "%Y-%m-%d").date()
+                except Exception:
+                    norm = _normalizar_data_iso(edit_sol["dataUltimaBota"])
+                    data_bota_val = datetime.strptime(norm, "%Y-%m-%d").date() if norm else None
+            data_bota = st.date_input("Data Última Bota", value=data_bota_val)
 
         st.markdown("---")
         submitted = st.form_submit_button("💾 Salvar Solicitação", type="primary")
@@ -746,6 +797,7 @@ def page_nova_solicitacao():
         st.session_state["compras_nova_itens_epi"] = []
         st.session_state["compras_edit_id"] = None
         st.session_state["compras_edit_loaded"] = False
+        _salvar_compras_automatico()
         st.success("Solicitação salva com sucesso!")
         st.session_state["compras_page"] = "Solicitações"
         # Navegação para Solicitações via compras_page
@@ -854,8 +906,22 @@ def page_entregas():
                         ne_status = st.selectbox("Status", STATUS_OPCOES, index=STATUS_OPCOES.index(e.get("status","Pendente")) if e.get("status") in STATUS_OPCOES else 0)
                         ne_transportadora = st.text_input("Transportadora", value=e.get("transportadora",""))
                         ne_rastreio = st.text_input("Rastreio", value=e.get("rastreio",""))
-                        ne_data_envio = st.date_input("Data Envio", value=datetime.strptime(e["dataEnvio"], "%Y-%m-%d").date() if e.get("dataEnvio") else None)
-                        ne_data_entrega = st.date_input("Data Entrega", value=datetime.strptime(e["dataEntrega"], "%Y-%m-%d").date() if e.get("dataEntrega") else None)
+                        ne_data_envio_val = None
+                        if e.get("dataEnvio"):
+                            try:
+                                ne_data_envio_val = datetime.strptime(e["dataEnvio"], "%Y-%m-%d").date()
+                            except Exception:
+                                norm = _normalizar_data_iso(e["dataEnvio"])
+                                ne_data_envio_val = datetime.strptime(norm, "%Y-%m-%d").date() if norm else None
+                        ne_data_envio = st.date_input("Data Envio", value=ne_data_envio_val)
+                        ne_data_entrega_val = None
+                        if e.get("dataEntrega"):
+                            try:
+                                ne_data_entrega_val = datetime.strptime(e["dataEntrega"], "%Y-%m-%d").date()
+                            except Exception:
+                                norm = _normalizar_data_iso(e["dataEntrega"])
+                                ne_data_entrega_val = datetime.strptime(norm, "%Y-%m-%d").date() if norm else None
+                        ne_data_entrega = st.date_input("Data Entrega", value=ne_data_entrega_val)
                         ne_obs = st.text_area("Observações", value=e.get("observacoes",""))
                         if st.form_submit_button("💾 Salvar"):
                             e["status"] = ne_status
@@ -869,6 +935,7 @@ def page_entregas():
                                 if s["id"] == e["idSolicitacao"]:
                                     s["status"] = ne_status
                                     break
+                            _salvar_compras_automatico()
                             st.success("Entrega atualizada!")
                             st.rerun()
     else:
@@ -1149,6 +1216,17 @@ def _salvar_dados_gs(dados):
             ws = spreadsheet.worksheet(aba_nome)
         except gspread.exceptions.WorksheetNotFound:
             ws = spreadsheet.add_worksheet(title=aba_nome, rows=1000, cols=len(df.columns) if not df.empty else 10)
+        # Garante que o DataFrame tenha todas as colunas esperadas antes de salvar
+        if not df.empty and ws.row_count > 0:
+            try:
+                header_row = ws.row_values(1)
+                if header_row:
+                    for col in header_row:
+                        if col not in df.columns:
+                            df[col] = ""
+                    df = df[header_row]
+            except Exception:
+                pass
         _df_to_gsheet(df, ws)
 
 def _carregar_diarias_gs():
@@ -1163,7 +1241,170 @@ def _salvar_diarias_gs(df):
     ws = spreadsheet.sheet1
     _df_to_gsheet(df, ws)
 
-# Inicialização Google Sheets: garante que abas existam
+
+# ====================== COMPRAS - GOOGLE SHEETS ======================
+def _normalizar_data_iso(valor):
+    """Converte uma data de qualquer formato conhecido para ISO (YYYY-MM-DD)."""
+    if not valor or str(valor).strip() == "":
+        return ""
+    s = str(valor).strip()
+    # Se já está no formato ISO, retorna como está
+    if re.match(r"^\d{4}-\d{2}-\d{2}$", s):
+        return s
+    # Tenta DD/MM/YYYY (prioridade para formato brasileiro)
+    if re.match(r"^\d{2}/\d{2}/\d{4}$", s):
+        try:
+            dt = datetime.strptime(s, "%d/%m/%Y")
+            return dt.strftime("%Y-%m-%d")
+        except Exception:
+            pass
+    # Tenta MM/DD/YYYY (formato americano) — somente se DD/MM falhou
+    if re.match(r"^\d{2}/\d{2}/\d{4}$", s):
+        try:
+            dt = datetime.strptime(s, "%m/%d/%Y")
+            return dt.strftime("%Y-%m-%d")
+        except Exception:
+            pass
+    # Tenta YYYY/MM/DD
+    if re.match(r"^\d{4}/\d{2}/\d{2}$", s):
+        try:
+            dt = datetime.strptime(s, "%Y/%m/%d")
+            return dt.strftime("%Y-%m-%d")
+        except Exception:
+            pass
+    # Se não conseguiu converter, retorna o valor original
+    return s
+
+
+def _iso_para_br(valor):
+    """Converte data ISO (YYYY-MM-DD) para formato brasileiro (DD/MM/YYYY)."""
+    if not valor or str(valor).strip() == "":
+        return ""
+    s = str(valor).strip()
+    if re.match(r"^\d{4}-\d{2}-\d{2}$", s):
+        try:
+            dt = datetime.strptime(s, "%Y-%m-%d")
+            return dt.strftime("%d/%m/%Y")
+        except Exception:
+            pass
+    return s
+
+
+def _solicitacao_to_row(s):
+    """Converte dict de solicitação em linha para o GS."""
+    return {
+        "id": s.get("id", ""),
+        "data": _iso_para_br(s.get("data", "")),
+        "cliente": s.get("cliente", ""),
+        "loja": s.get("loja", ""),
+        "tipo": s.get("tipo", ""),
+        "solicitante": s.get("solicitante", ""),
+        "nomeFuncionario": s.get("nomeFuncionario", ""),
+        "encarregado": s.get("encarregado", ""),
+        "supervisor": s.get("supervisor", ""),
+        "dataUltimaBota": _iso_para_br(s.get("dataUltimaBota", "")),
+        "prioridade": s.get("prioridade", ""),
+        "previsao": _iso_para_br(s.get("previsao", "")),
+        "observacoes": s.get("observacoes", ""),
+        "itens": json.dumps(s.get("itens", []), ensure_ascii=False),
+        "valorTotal": s.get("valorTotal", 0),
+        "anexos": json.dumps(s.get("anexos", []), ensure_ascii=False),
+        "status": s.get("status", "Pendente"),
+        "dataCriacao": _iso_para_br(s.get("dataCriacao", ""))
+    }
+
+def _row_to_solicitacao(row):
+    """Converte linha do GS em dict de solicitação."""
+    s = dict(row)
+    try:
+        s["itens"] = json.loads(s.get("itens", "[]")) if s.get("itens") else []
+    except Exception:
+        s["itens"] = []
+    try:
+        s["anexos"] = json.loads(s.get("anexos", "[]")) if s.get("anexos") else []
+    except Exception:
+        s["anexos"] = []
+    try:
+        s["valorTotal"] = float(s.get("valorTotal", 0)) if s.get("valorTotal") else 0
+    except Exception:
+        s["valorTotal"] = 0
+    # Normaliza campos de data para ISO
+    for campo_data in ["data", "previsao", "dataUltimaBota", "dataCriacao"]:
+        if campo_data in s:
+            s[campo_data] = _normalizar_data_iso(s.get(campo_data, ""))
+    return s
+
+def _entrega_to_row(e):
+    """Converte dict de entrega em linha para o GS."""
+    return {
+        "idSolicitacao": e.get("idSolicitacao", ""),
+        "loja": e.get("loja", ""),
+        "tipo": e.get("tipo", ""),
+        "dataEnvio": _iso_para_br(e.get("dataEnvio", "")),
+        "dataPrevista": _iso_para_br(e.get("dataPrevista", "")),
+        "dataEntrega": _iso_para_br(e.get("dataEntrega", "")),
+        "transportadora": e.get("transportadora", ""),
+        "rastreio": e.get("rastreio", ""),
+        "status": e.get("status", "Pendente")
+    }
+
+def _row_to_entrega(row):
+    """Converte linha do GS em dict de entrega."""
+    e = dict(row)
+    for campo_data in ["dataEnvio", "dataPrevista", "dataEntrega"]:
+        if campo_data in e:
+            e[campo_data] = _normalizar_data_iso(e.get(campo_data, ""))
+    return e
+
+def _carregar_compras_gs():
+    """Carrega dados de compras do Google Sheets."""
+    spreadsheet = gc.open_by_key(GS_ID_COMPRAS)
+    abas = {ws.title: ws for ws in spreadsheet.worksheets()}
+    solicitacoes = []
+    entregas = []
+    if "Solicitacoes" in abas:
+        df = _gsheet_to_df(abas["Solicitacoes"])
+        for _, row in df.iterrows():
+            solicitacoes.append(_row_to_solicitacao(row))
+    if "Entregas" in abas:
+        df = _gsheet_to_df(abas["Entregas"])
+        for _, row in df.iterrows():
+            entregas.append(_row_to_entrega(row))
+    return solicitacoes, entregas
+
+def _salvar_compras_gs(solicitacoes, entregas):
+    """Salva dados de compras no Google Sheets."""
+    spreadsheet = gc.open_by_key(GS_ID_COMPRAS)
+    abas = {ws.title: ws for ws in spreadsheet.worksheets()}
+
+    # Aba Solicitacoes
+    if "Solicitacoes" not in abas:
+        spreadsheet.add_worksheet(title="Solicitacoes", rows=1000, cols=20)
+    ws_sol = spreadsheet.worksheet("Solicitacoes")
+    if solicitacoes:
+        df_sol = pd.DataFrame([_solicitacao_to_row(s) for s in solicitacoes])
+    else:
+        df_sol = pd.DataFrame(columns=[
+            "id","data","cliente","loja","tipo","solicitante","nomeFuncionario",
+            "encarregado","supervisor","dataUltimaBota","prioridade","previsao",
+            "observacoes","itens","valorTotal","anexos","status","dataCriacao"
+        ])
+    _df_to_gsheet(df_sol, ws_sol)
+
+    # Aba Entregas
+    if "Entregas" not in abas:
+        spreadsheet.add_worksheet(title="Entregas", rows=1000, cols=10)
+    ws_ent = spreadsheet.worksheet("Entregas")
+    if entregas:
+        df_ent = pd.DataFrame([_entrega_to_row(e) for e in entregas])
+    else:
+        df_ent = pd.DataFrame(columns=[
+            "idSolicitacao","loja","tipo","dataEnvio","dataPrevista",
+            "dataEntrega","transportadora","rastreio","status"
+        ])
+    _df_to_gsheet(df_ent, ws_ent)
+
+
 if GS_ENABLED:
     try:
         # Garante abas na planilha de funcionários
