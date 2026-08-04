@@ -953,37 +953,42 @@ def render_compras():
     st.subheader("🛒 SISTEMA DE COMPRAS E ENTREGAS")
     st.info("Módulo completo de controle de compras, solicitações e entregas.")
 
-    # Menu lateral dentro da aba
-    menu = st.sidebar.radio(
-        "Navegação Compras",
-        ["Dashboard", "Solicitações", "Nova Solicitação", "Controle de Entregas", "Catálogo de Materiais", "Lojas e Clientes", "Relatórios e Downloads"],
-        index=["Dashboard", "Solicitações", "Nova Solicitação", "Controle de Entregas", "Catálogo de Materiais", "Lojas e Clientes", "Relatórios e Downloads"].index(st.session_state["compras_page"])
-        if st.session_state["compras_page"] in ["Dashboard", "Solicitações", "Nova Solicitação", "Controle de Entregas", "Catálogo de Materiais", "Lojas e Clientes", "Relatórios e Downloads"]
-        else 0
-    )
-    if menu != st.session_state["compras_page"]:
-        st.session_state["compras_page"] = menu
-        st.session_state["compras_edit_id"] = None
-        st.session_state["compras_edit_loaded"] = False
-        st.rerun()
+    # Menu lateral interno (dentro da aba, não na sidebar global)
+    col_menu, col_conteudo = st.columns([1, 4])
+    with col_menu:
+        st.markdown("#### Navegação Compras")
+        menu = st.radio(
+            "",
+            ["Dashboard", "Solicitações", "Nova Solicitação", "Controle de Entregas", "Catálogo de Materiais", "Lojas e Clientes", "Relatórios e Downloads"],
+            index=["Dashboard", "Solicitações", "Nova Solicitação", "Controle de Entregas", "Catálogo de Materiais", "Lojas e Clientes", "Relatórios e Downloads"].index(st.session_state["compras_page"])
+            if st.session_state["compras_page"] in ["Dashboard", "Solicitações", "Nova Solicitação", "Controle de Entregas", "Catálogo de Materiais", "Lojas e Clientes", "Relatórios e Downloads"]
+            else 0,
+            key="nav_compras"
+        )
+        if menu != st.session_state["compras_page"]:
+            st.session_state["compras_page"] = menu
+            st.session_state["compras_edit_id"] = None
+            st.session_state["compras_edit_loaded"] = False
+            st.rerun()
 
-    page = st.session_state["compras_page"]
-    if page == "Dashboard":
-        page_dashboard()
-    elif page == "Solicitações":
-        page_solicitacoes()
-    elif page == "Nova Solicitação":
-        page_nova_solicitacao()
-    elif page == "Detalhes":
-        page_detalhes()
-    elif page == "Controle de Entregas":
-        page_entregas()
-    elif page == "Catálogo de Materiais":
-        page_materiais()
-    elif page == "Lojas e Clientes":
-        page_lojas()
-    elif page == "Relatórios e Downloads":
-        page_relatorios()
+    with col_conteudo:
+        page = st.session_state["compras_page"]
+        if page == "Dashboard":
+            page_dashboard()
+        elif page == "Solicitações":
+            page_solicitacoes()
+        elif page == "Nova Solicitação":
+            page_nova_solicitacao()
+        elif page == "Detalhes":
+            page_detalhes()
+        elif page == "Controle de Entregas":
+            page_entregas()
+        elif page == "Catálogo de Materiais":
+            page_materiais()
+        elif page == "Lojas e Clientes":
+            page_lojas()
+        elif page == "Relatórios e Downloads":
+            page_relatorios()
 
 
 # ====================== CONFIGURAÇÕES GERAIS ======================
