@@ -442,7 +442,7 @@ def page_dashboard():
     else:
         st.info("Nenhuma solicitação cadastrada.")
 
-    if st.button("➕ Nova Solicitação", type="primary"):
+    if st.button("➕ Nova Solicitação", type="primary", key="btn_nova_sol_dashboard"):
         switch_page("Nova Solicitação")
 
 
@@ -535,6 +535,10 @@ def page_solicitacoes():
             st.download_button("📥 Exportar CSV", data=csv_buffer.getvalue().encode("utf-8"), file_name="solicitacoes.csv", mime="text/csv")
     else:
         st.info("Nenhuma solicitação encontrada.")
+
+    st.markdown("---")
+    if st.button("➕ Nova Solicitação", type="primary", key="btn_nova_sol_solicitacoes"):
+        switch_page("Nova Solicitação")
 
 
 def page_nova_solicitacao():
@@ -872,21 +876,63 @@ def page_entregas():
 
 
 def page_materiais():
-    st.markdown("### 📋 Catálogo de Materiais")
-    fcliente = st.selectbox("Cliente", ["Todos"] + CLIENTES, key="mat_fcliente")
+    st.markdown("### 📋 Catálogo de Materiais e EPIs")
 
-    dados = []
-    for cliente, lista in MATERIAIS_POR_CLIENTE.items():
-        if fcliente != "Todos" and cliente != fcliente:
-            continue
-        for idx, nome in enumerate(lista, 1):
-            dados.append({"ID": idx, "Nome": nome, "Cliente": cliente, "Categoria": "Material"})
+    tab_mat, tab_epi, tab_cad = st.tabs(["📦 Materiais", "👷 EPIs", "➕ Cadastrar Novo"])
 
-    if dados:
-        df = pd.DataFrame(dados)
-        st.dataframe(df, use_container_width=True, hide_index=True)
-    else:
-        st.info("Nenhum material encontrado.")
+    with tab_mat:
+        fcliente = st.selectbox("Filtrar por Cliente", ["Todos"] + CLIENTES, key="mat_fcliente_tab")
+        dados = []
+        for cliente, lista in MATERIAIS_POR_CLIENTE.items():
+            if fcliente != "Todos" and cliente != fcliente:
+                continue
+            for idx, nome in enumerate(lista, 1):
+                dados.append({"ID": idx, "Nome": nome, "Cliente": cliente, "Categoria": "Material"})
+        if dados:
+            df = pd.DataFrame(dados)
+            st.dataframe(df, use_container_width=True, hide_index=True)
+        else:
+            st.info("Nenhum material encontrado.")
+
+    with tab_epi:
+        fcliente_epi = st.selectbox("Filtrar por Cliente", ["Todos"] + CLIENTES, key="epi_fcliente_tab")
+        dados_epi = []
+        for cliente, lista in EPIS_POR_CLIENTE.items():
+            if fcliente_epi != "Todos" and cliente != fcliente_epi:
+                continue
+            for idx, nome in enumerate(lista, 1):
+                dados_epi.append({"ID": idx, "Nome": nome, "Cliente": cliente, "Categoria": "EPI"})
+        if dados_epi:
+            df_epi = pd.DataFrame(dados_epi)
+            st.dataframe(df_epi, use_container_width=True, hide_index=True)
+        else:
+            st.info("Nenhum EPI encontrado.")
+
+    with tab_cad:
+        st.markdown("#### ➕ Cadastrar Novo Item")
+        tipo_cad = st.selectbox("Tipo", ["Material", "EPI"], key="cad_tipo")
+        cliente_cad = st.selectbox("Cliente", CLIENTES, key="cad_cliente")
+        nome_cad = st.text_input("Nome do Item *", key="cad_nome")
+        if st.button("💾 Salvar Item", type="primary", key="cad_salvar"):
+            if not nome_cad.strip():
+                st.error("Informe o nome do item.")
+            else:
+                if tipo_cad == "Material":
+                    if nome_cad.strip() not in MATERIAIS_POR_CLIENTE.get(cliente_cad, []):
+                        MATERIAIS_POR_CLIENTE.setdefault(cliente_cad, [])
+                        MATERIAIS_POR_CLIENTE[cliente_cad].append(nome_cad.strip())
+                        st.success(f"Material '{nome_cad.strip()}' cadastrado para {cliente_cad}!")
+                        st.rerun()
+                    else:
+                        st.warning("Este material já está cadastrado para este cliente.")
+                else:
+                    if nome_cad.strip() not in EPIS_POR_CLIENTE.get(cliente_cad, []):
+                        EPIS_POR_CLIENTE.setdefault(cliente_cad, [])
+                        EPIS_POR_CLIENTE[cliente_cad].append(nome_cad.strip())
+                        st.success(f"EPI '{nome_cad.strip()}' cadastrado para {cliente_cad}!")
+                        st.rerun()
+                    else:
+                        st.warning("Este EPI já está cadastrado para este cliente.")
 
 
 def page_lojas():
