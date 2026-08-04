@@ -211,8 +211,6 @@ def init_session_state():
         st.session_state["compras_entregas"] = []
     if "compras_page" not in st.session_state:
         st.session_state["compras_page"] = "Dashboard"
-    if "nav_compras" not in st.session_state:
-        st.session_state["nav_compras"] = "Dashboard"
     if "compras_edit_id" not in st.session_state:
         st.session_state["compras_edit_id"] = None
     if "compras_nova_itens_material" not in st.session_state:
@@ -226,7 +224,6 @@ def init_session_state():
 def switch_page(page):
     st.session_state["compras_page"] = page
     st.session_state["compras_edit_id"] = None
-    st.session_state["nav_compras"] = page
     st.rerun()
 
 
@@ -510,13 +507,13 @@ def page_solicitacoes():
                         if st.button("👁️", key=f"ver_{s['id']}"):
                             st.session_state["compras_ver_id"] = s["id"]
                             st.session_state["compras_page"] = "Detalhes"
-                            st.session_state["nav_compras"] = "Detalhes"
+
                             st.rerun()
                     with c_b:
                         if st.button("✏️", key=f"edit_{s['id']}"):
                             st.session_state["compras_edit_id"] = s["id"]
                             st.session_state["compras_page"] = "Nova Solicitação"
-                            st.session_state["nav_compras"] = "Nova Solicitação"
+
                             st.rerun()
                     with c_c:
                         if st.button("🗑️", key=f"del_{s['id']}"):
@@ -751,7 +748,7 @@ def page_nova_solicitacao():
         st.session_state["compras_edit_loaded"] = False
         st.success("Solicitação salva com sucesso!")
         st.session_state["compras_page"] = "Solicitações"
-        st.session_state["nav_compras"] = "Solicitações"
+        # Navegação para Solicitações via compras_page
         st.rerun()
 
 
@@ -818,7 +815,7 @@ def page_detalhes():
 
     if st.button("🔙 Voltar"):
         st.session_state["compras_page"] = "Solicitações"
-        st.session_state["nav_compras"] = "Solicitações"
+        # Navegação para Solicitações via compras_page
         st.rerun()
 
 
@@ -1012,7 +1009,7 @@ def render_compras():
             index=["Dashboard", "Solicitações", "Nova Solicitação", "Controle de Entregas", "Catálogo de Materiais", "Lojas e Clientes", "Relatórios e Downloads"].index(st.session_state["compras_page"])
             if st.session_state["compras_page"] in ["Dashboard", "Solicitações", "Nova Solicitação", "Controle de Entregas", "Catálogo de Materiais", "Lojas e Clientes", "Relatórios e Downloads"]
             else 0,
-            key="nav_compras"
+            # key removido para evitar conflito de session_state com botões
         )
         if menu != st.session_state["compras_page"]:
             st.session_state["compras_page"] = menu
