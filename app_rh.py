@@ -628,6 +628,81 @@ def page_nova_solicitacao():
             key="nova_tipo"
         )
 
+    # ================================================================
+    # DATA EDITOR FORA DO FORM (evita NotFoundError do React DOM)
+    # ================================================================
+    st.markdown("---")
+    st.markdown("#### 📦 Itens")
+
+    if tipo == "Material":
+        materiais = MATERIAIS_POR_CLIENTE.get(cliente, [])
+        if edit_sol:
+            itens_edit = [
+                {"material": i.get("material", ""), "qtd": i.get("qtd", 1), "valorUnit": i.get("valorUnit", 0)}
+                for i in edit_sol.get("itens", [])
+            ]
+            df_mat = pd.DataFrame(itens_edit)
+        else:
+            df_mat = pd.DataFrame(columns=["material", "qtd", "valorUnit"])
+        if df_mat.empty:
+            df_mat = pd.DataFrame(columns=["material", "qtd", "valorUnit"])
+
+        edited_mat = st.data_editor(
+            df_mat,
+            num_rows="dynamic",
+            use_container_width=True,
+            column_config={
+                "material": st.column_config.SelectboxColumn(
+                    "Material", options=materiais, required=True
+                ),
+                "qtd": st.column_config.NumberColumn(
+                    "Quantidade", min_value=1, step=1, required=True
+                ),
+                "valorUnit": st.column_config.NumberColumn(
+                    "Valor Unit. (R$)", min_value=0.0, step=0.01, format="%.2f"
+                ),
+            },
+            key=f"de_mat_{edit_id or 'nova'}"
+        )
+        edited_epi = None
+
+    elif tipo == "EPI":
+        epis = EPIS_POR_CLIENTE.get(cliente, EPIS_POR_CLIENTE.get("Smart Fit", []))
+        if edit_sol:
+            itens_edit = [
+                {"epi": i.get("epi", ""), "colaborador": i.get("colaborador", ""),
+                 "qtd": i.get("qtd", 1), "tamanho": i.get("tamanho", "")}
+                for i in edit_sol.get("itens", [])
+            ]
+            df_epi = pd.DataFrame(itens_edit)
+        else:
+            df_epi = pd.DataFrame(columns=["epi", "colaborador", "qtd", "tamanho"])
+        if df_epi.empty:
+            df_epi = pd.DataFrame(columns=["epi", "colaborador", "qtd", "tamanho"])
+
+        edited_epi = st.data_editor(
+            df_epi,
+            num_rows="dynamic",
+            use_container_width=True,
+            column_config={
+                "epi": st.column_config.SelectboxColumn(
+                    "EPI", options=epis, required=True
+                ),
+                "colaborador": st.column_config.TextColumn("Colaborador"),
+                "qtd": st.column_config.NumberColumn(
+                    "Quantidade", min_value=1, step=1, required=True
+                ),
+                "tamanho": st.column_config.SelectboxColumn(
+                    "Tamanho", options=TAMANHOS_EPI, required=True
+                ),
+            },
+            key=f"de_epi_{edit_id or 'nova'}"
+        )
+        edited_mat = None
+
+    # ================================================================
+    # FORM COM OS DEMAIS CAMPOS
+    # ================================================================
     with st.form("form_nova_solicitacao"):
         c4, c5, c6 = st.columns(3)
         with c4:
@@ -673,74 +748,6 @@ def page_nova_solicitacao():
             data_bota_txt = st.text_input("Data Última Bota (DD/MM/AAAA)", value=data_bota_str)
             data_bota = _parse_data_br(data_bota_txt) if data_bota_str else None
 
-        st.markdown("---")
-        st.markdown("#### 📦 Itens")
-
-        if tipo == "Material":
-            materiais = MATERIAIS_POR_CLIENTE.get(cliente, [])
-            # Monta DataFrame inicial
-            if edit_sol:
-                itens_edit = [
-                    {"material": i.get("material", ""), "qtd": i.get("qtd", 1), "valorUnit": i.get("valorUnit", 0)}
-                    for i in edit_sol.get("itens", [])
-                ]
-                df_mat = pd.DataFrame(itens_edit)
-            else:
-                df_mat = pd.DataFrame(columns=["material", "qtd", "valorUnit"])
-            if df_mat.empty:
-                df_mat = pd.DataFrame(columns=["material", "qtd", "valorUnit"])
-
-            edited_mat = st.data_editor(
-                df_mat,
-                num_rows="dynamic",
-                use_container_width=True,
-                column_config={
-                    "material": st.column_config.SelectboxColumn(
-                        "Material", options=materiais, required=True
-                    ),
-                    "qtd": st.column_config.NumberColumn(
-                        "Quantidade", min_value=1, step=1, required=True
-                    ),
-                    "valorUnit": st.column_config.NumberColumn(
-                        "Valor Unit. (R$)", min_value=0.0, step=0.01, format="%.2f"
-                    ),
-                },
-                key=f"de_mat_{edit_id or 'nova'}"
-            )
-
-        elif tipo == "EPI":
-            epis = EPIS_POR_CLIENTE.get(cliente, EPIS_POR_CLIENTE.get("Smart Fit", []))
-            if edit_sol:
-                itens_edit = [
-                    {"epi": i.get("epi", ""), "colaborador": i.get("colaborador", ""),
-                     "qtd": i.get("qtd", 1), "tamanho": i.get("tamanho", "")}
-                    for i in edit_sol.get("itens", [])
-                ]
-                df_epi = pd.DataFrame(itens_edit)
-            else:
-                df_epi = pd.DataFrame(columns=["epi", "colaborador", "qtd", "tamanho"])
-            if df_epi.empty:
-                df_epi = pd.DataFrame(columns=["epi", "colaborador", "qtd", "tamanho"])
-
-            edited_epi = st.data_editor(
-                df_epi,
-                num_rows="dynamic",
-                use_container_width=True,
-                column_config={
-                    "epi": st.column_config.SelectboxColumn(
-                        "EPI", options=epis, required=True
-                    ),
-                    "colaborador": st.column_config.TextColumn("Colaborador"),
-                    "qtd": st.column_config.NumberColumn(
-                        "Quantidade", min_value=1, step=1, required=True
-                    ),
-                    "tamanho": st.column_config.SelectboxColumn(
-                        "Tamanho", options=TAMANHOS_EPI, required=True
-                    ),
-                },
-                key=f"de_epi_{edit_id or 'nova'}"
-            )
-
         submitted = st.form_submit_button("💾 Salvar Solicitação", type="primary")
 
     # Ao salvar (fora do form para permitir mensagens e navegação)
@@ -748,7 +755,6 @@ def page_nova_solicitacao():
         itens = []
         valor_total = 0
         if tipo == "Material":
-            # edited_mat é um DataFrame; converte para lista de dicts
             for _, row in edited_mat.iterrows():
                 if pd.notna(row.get("material")) and str(row.get("material")).strip():
                     itens.append({
