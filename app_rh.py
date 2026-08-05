@@ -607,21 +607,31 @@ def page_nova_solicitacao():
                 edit_sol = s
                 break
 
-    # Seletores fora do form para atualização dinâmica
+    # Seletores fora do form para manter reatividade (cliente filtra loja)
     col_sel1, col_sel2, col_sel3 = st.columns(3)
     with col_sel1:
-        cliente = st.selectbox("Cliente *", CLIENTES, index=CLIENTES.index(edit_sol["cliente"]) if edit_sol and edit_sol.get("cliente") in CLIENTES else 0, key="nova_cliente")
+        cliente = st.selectbox(
+            "Cliente *",
+            CLIENTES,
+            index=CLIENTES.index(edit_sol["cliente"]) if edit_sol and edit_sol.get("cliente") in CLIENTES else 0,
+            key="nova_cliente"
+        )
     with col_sel2:
         lojas = LOJAS_POR_CLIENTE.get(cliente, [])
         idx_loja = lojas.index(edit_sol["loja"]) if edit_sol and edit_sol.get("loja") in lojas else 0
         loja = st.selectbox("Loja *", lojas, index=idx_loja, key="nova_loja")
     with col_sel3:
-        tipo = st.selectbox("Tipo *", TIPOS_SOLICITACAO, index=TIPOS_SOLICITACAO.index(edit_sol["tipo"]) if edit_sol and edit_sol.get("tipo") in TIPOS_SOLICITACAO else 0, key="nova_tipo")
+        tipo = st.selectbox(
+            "Tipo *",
+            TIPOS_SOLICITACAO,
+            index=TIPOS_SOLICITACAO.index(edit_sol["tipo"]) if edit_sol and edit_sol.get("tipo") in TIPOS_SOLICITACAO else 0,
+            key="nova_tipo"
+        )
 
     with st.form("form_nova_solicitacao"):
         c4, c5, c6 = st.columns(3)
         with c4:
-            solicitante = st.text_input("Solicitante *", value=edit_sol.get("solicitante","") if edit_sol else "")
+            solicitante = st.text_input("Solicitante *", value=edit_sol.get("solicitante", "") if edit_sol else "")
         with c5:
             data_sol_str = ""
             if edit_sol and edit_sol.get("data"):
@@ -631,7 +641,11 @@ def page_nova_solicitacao():
             data_sol_txt = st.text_input("Data (DD/MM/AAAA)", value=data_sol_str)
             data_sol = _parse_data_br(data_sol_txt)
         with c6:
-            prioridade = st.selectbox("Prioridade", PRIORIDADES, index=PRIORIDADES.index(edit_sol["prioridade"]) if edit_sol and edit_sol.get("prioridade") in PRIORIDADES else 0)
+            prioridade = st.selectbox(
+                "Prioridade",
+                PRIORIDADES,
+                index=PRIORIDADES.index(edit_sol["prioridade"]) if edit_sol and edit_sol.get("prioridade") in PRIORIDADES else 0
+            )
 
         previsao_str = ""
         if edit_sol and edit_sol.get("previsao"):
@@ -640,7 +654,7 @@ def page_nova_solicitacao():
             previsao_str = (datetime.now() + timedelta(days=7)).strftime("%d/%m/%Y")
         previsao_txt = st.text_input("Previsão de Entrega (DD/MM/AAAA)", value=previsao_str)
         previsao = _parse_data_br(previsao_txt)
-        observacoes = st.text_area("Observações", value=edit_sol.get("observacoes","") if edit_sol else "")
+        observacoes = st.text_area("Observações", value=edit_sol.get("observacoes", "") if edit_sol else "")
 
         # Campos específicos EPI
         if tipo == "EPI":
@@ -648,11 +662,11 @@ def page_nova_solicitacao():
             st.markdown("#### 👷 Informações EPI")
             c7, c8, c9 = st.columns(3)
             with c7:
-                nome_func = st.text_input("Nome do Funcionário", value=edit_sol.get("nomeFuncionario","") if edit_sol else "")
+                nome_func = st.text_input("Nome do Funcionário", value=edit_sol.get("nomeFuncionario", "") if edit_sol else "")
             with c8:
-                encarregado = st.text_input("Encarregado", value=edit_sol.get("encarregado","") if edit_sol else "")
+                encarregado = st.text_input("Encarregado", value=edit_sol.get("encarregado", "") if edit_sol else "")
             with c9:
-                supervisor = st.text_input("Supervisor", value=edit_sol.get("supervisor","") if edit_sol else "")
+                supervisor = st.text_input("Supervisor", value=edit_sol.get("supervisor", "") if edit_sol else "")
             data_bota_str = ""
             if edit_sol and edit_sol.get("dataUltimaBota"):
                 data_bota_str = _iso_para_br(edit_sol["dataUltimaBota"])
@@ -660,96 +674,101 @@ def page_nova_solicitacao():
             data_bota = _parse_data_br(data_bota_txt) if data_bota_str else None
 
         st.markdown("---")
+        st.markdown("#### 📦 Itens")
+
+        if tipo == "Material":
+            materiais = MATERIAIS_POR_CLIENTE.get(cliente, [])
+            # Monta DataFrame inicial
+            if edit_sol:
+                itens_edit = [
+                    {"material": i.get("material", ""), "qtd": i.get("qtd", 1), "valorUnit": i.get("valorUnit", 0)}
+                    for i in edit_sol.get("itens", [])
+                ]
+                df_mat = pd.DataFrame(itens_edit)
+            else:
+                df_mat = pd.DataFrame(columns=["material", "qtd", "valorUnit"])
+            if df_mat.empty:
+                df_mat = pd.DataFrame(columns=["material", "qtd", "valorUnit"])
+
+            edited_mat = st.data_editor(
+                df_mat,
+                num_rows="dynamic",
+                use_container_width=True,
+                column_config={
+                    "material": st.column_config.SelectboxColumn(
+                        "Material", options=materiais, required=True
+                    ),
+                    "qtd": st.column_config.NumberColumn(
+                        "Quantidade", min_value=1, step=1, required=True
+                    ),
+                    "valorUnit": st.column_config.NumberColumn(
+                        "Valor Unit. (R$)", min_value=0.0, step=0.01, format="%.2f"
+                    ),
+                },
+                key=f"de_mat_{edit_id or 'nova'}"
+            )
+
+        elif tipo == "EPI":
+            epis = EPIS_POR_CLIENTE.get(cliente, EPIS_POR_CLIENTE.get("Smart Fit", []))
+            if edit_sol:
+                itens_edit = [
+                    {"epi": i.get("epi", ""), "colaborador": i.get("colaborador", ""),
+                     "qtd": i.get("qtd", 1), "tamanho": i.get("tamanho", "")}
+                    for i in edit_sol.get("itens", [])
+                ]
+                df_epi = pd.DataFrame(itens_edit)
+            else:
+                df_epi = pd.DataFrame(columns=["epi", "colaborador", "qtd", "tamanho"])
+            if df_epi.empty:
+                df_epi = pd.DataFrame(columns=["epi", "colaborador", "qtd", "tamanho"])
+
+            edited_epi = st.data_editor(
+                df_epi,
+                num_rows="dynamic",
+                use_container_width=True,
+                column_config={
+                    "epi": st.column_config.SelectboxColumn(
+                        "EPI", options=epis, required=True
+                    ),
+                    "colaborador": st.column_config.TextColumn("Colaborador"),
+                    "qtd": st.column_config.NumberColumn(
+                        "Quantidade", min_value=1, step=1, required=True
+                    ),
+                    "tamanho": st.column_config.SelectboxColumn(
+                        "Tamanho", options=TAMANHOS_EPI, required=True
+                    ),
+                },
+                key=f"de_epi_{edit_id or 'nova'}"
+            )
+
         submitted = st.form_submit_button("💾 Salvar Solicitação", type="primary")
 
-    # Itens (fora do form para permitir adicionar dinamicamente)
-    st.markdown("#### 📦 Itens")
-
-    if tipo == "Material":
-        st.markdown("**Materiais**")
-        materiais = MATERIAIS_POR_CLIENTE.get(cliente, [])
-
-        # Inicializar itens do edit
-        if edit_sol and not st.session_state.get("compras_edit_loaded"):
-            st.session_state["compras_nova_itens_material"] = [
-                {"material": i.get("material",""), "qtd": i.get("qtd",1), "valorUnit": i.get("valorUnit",0)}
-                for i in edit_sol.get("itens", [])
-            ]
-            st.session_state["compras_edit_loaded"] = True
-
-        itens_mat = st.session_state.get("compras_nova_itens_material", [])
-
-        for idx, item in enumerate(itens_mat):
-            cols = st.columns([3, 1, 1, 1])
-            with cols[0]:
-                item["material"] = st.selectbox(f"Material {idx+1}", materiais, index=materiais.index(item["material"]) if item.get("material") in materiais else 0, key=f"mat_sel_{idx}")
-            with cols[1]:
-                item["qtd"] = st.number_input(f"Qtd {idx+1}", min_value=1, value=int(item.get("qtd", 1)), key=f"mat_qtd_{idx}")
-            with cols[2]:
-                v = item.get("valorUnit", 0)
-                item["valorUnit"] = st.number_input(f"Valor {idx+1}", min_value=0.0, value=float(v), step=0.01, format="%.2f", key=f"mat_val_{idx}")
-            with cols[3]:
-                st.write("")
-                st.write("")
-                if st.button("🗑️", key=f"mat_rem_{idx}"):
-                    itens_mat.pop(idx)
-                    st.session_state["compras_nova_itens_material"] = itens_mat
-                    st.rerun()
-
-        if st.button("➕ Adicionar Material"):
-            itens_mat.append({"material": materiais[0] if materiais else "", "qtd": 1, "valorUnit": 0})
-            st.session_state["compras_nova_itens_material"] = itens_mat
-            st.rerun()
-
-    elif tipo == "EPI":
-        st.markdown("**EPIs**")
-        epis = EPIS_POR_CLIENTE.get(cliente, EPIS_POR_CLIENTE.get("Smart Fit", []))
-
-        if edit_sol and not st.session_state.get("compras_edit_loaded"):
-            st.session_state["compras_nova_itens_epi"] = [
-                {"epi": i.get("epi",""), "colaborador": i.get("colaborador",""), "qtd": i.get("qtd",1), "tamanho": i.get("tamanho","")}
-                for i in edit_sol.get("itens", [])
-            ]
-            st.session_state["compras_edit_loaded"] = True
-
-        itens_epi = st.session_state.get("compras_nova_itens_epi", [])
-
-        for idx, item in enumerate(itens_epi):
-            cols = st.columns([2, 1, 1, 1, 1])
-            with cols[0]:
-                item["epi"] = st.selectbox(f"EPI {idx+1}", epis, index=epis.index(item["epi"]) if item.get("epi") in epis else 0, key=f"epi_sel_{idx}")
-            with cols[1]:
-                item["colaborador"] = st.text_input(f"Colab {idx+1}", value=item.get("colaborador",""), key=f"epi_col_{idx}")
-            with cols[2]:
-                item["qtd"] = st.number_input(f"Qtd {idx+1}", min_value=1, value=int(item.get("qtd", 1)), key=f"epi_qtd_{idx}")
-            with cols[3]:
-                tams = TAMANHOS_EPI
-                item["tamanho"] = st.selectbox(f"Tam {idx+1}", tams, index=tams.index(item["tamanho"]) if item.get("tamanho") in tams else 0, key=f"epi_tam_{idx}")
-            with cols[4]:
-                st.write("")
-                st.write("")
-                if st.button("🗑️", key=f"epi_rem_{idx}"):
-                    itens_epi.pop(idx)
-                    st.session_state["compras_nova_itens_epi"] = itens_epi
-                    st.rerun()
-
-        if st.button("➕ Adicionar EPI"):
-            itens_epi.append({"epi": epis[0] if epis else "", "colaborador": "", "qtd": 1, "tamanho": ""})
-            st.session_state["compras_nova_itens_epi"] = itens_epi
-            st.rerun()
-
-    # Ao salvar
+    # Ao salvar (fora do form para permitir mensagens e navegação)
     if submitted:
         itens = []
         valor_total = 0
         if tipo == "Material":
-            itens = st.session_state.get("compras_nova_itens_material", [])
-            valor_total = sum(i.get("valorUnit", 0) * i.get("qtd", 0) for i in itens)
+            # edited_mat é um DataFrame; converte para lista de dicts
+            for _, row in edited_mat.iterrows():
+                if pd.notna(row.get("material")) and str(row.get("material")).strip():
+                    itens.append({
+                        "material": str(row.get("material")),
+                        "qtd": int(row.get("qtd", 1)) if pd.notna(row.get("qtd")) else 1,
+                        "valorUnit": float(row.get("valorUnit", 0)) if pd.notna(row.get("valorUnit")) else 0.0,
+                    })
+            valor_total = sum(i["valorUnit"] * i["qtd"] for i in itens)
             if not itens:
                 st.error("Adicione pelo menos um material.")
                 return
         elif tipo == "EPI":
-            itens = st.session_state.get("compras_nova_itens_epi", [])
+            for _, row in edited_epi.iterrows():
+                if pd.notna(row.get("epi")) and str(row.get("epi")).strip():
+                    itens.append({
+                        "epi": str(row.get("epi")),
+                        "colaborador": str(row.get("colaborador", "")) if pd.notna(row.get("colaborador")) else "",
+                        "qtd": int(row.get("qtd", 1)) if pd.notna(row.get("qtd")) else 1,
+                        "tamanho": str(row.get("tamanho", "")) if pd.notna(row.get("tamanho")) else "",
+                    })
             if not itens:
                 st.error("Adicione pelo menos um EPI.")
                 return
@@ -822,9 +841,7 @@ def page_nova_solicitacao():
         _salvar_compras_automatico()
         st.success("Solicitação salva com sucesso!")
         st.session_state["compras_page"] = "Solicitações"
-        # Navegação para Solicitações via compras_page
         st.rerun()
-
 
 def page_detalhes():
     ver_id = st.session_state.get("compras_ver_id")
