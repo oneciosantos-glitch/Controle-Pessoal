@@ -2660,7 +2660,7 @@ with aba2:
     st.markdown("---")
     st.subheader("📊 GRÁFICO POR SITUAÇÃO")
     if not MATPLOT:
-        st.warning("⚠️ O gráfico não pode ser exibido porque a biblioteca `matplotlib` não está instalada. Adicione `matplotlib` ao `requirements.txt` e reinicie o app.")
+        st.warning("⚠️ O gráfico não pode ser exibido porque a biblioteca matplotlib não está instalada. Adicione matplotlib ao requirements.txt e reinicie o app.")
     else:
         try:
             contagem_graf = {
@@ -4021,58 +4021,61 @@ with aba9:
                 st.markdown("---")
                 st.markdown("#### 📈 Gráficos")
 
-                g1, g2 = st.columns(2)
-                with g1:
-                    status_counts = df_v_num["STATUS"].value_counts()
-                    if not status_counts.empty:
-                        fig1, ax1 = plt.subplots(figsize=(4.5, 3.5))
-                        colors = {"Planejada": "#3498db", "Em Andamento": "#f1c40f", "Concluída": "#2ecc71", "Cancelada": "#e74c3c"}
-                        pie_colors = [colors.get(s, "#95a5a6") for s in status_counts.index]
-                        ax1.pie(status_counts.values, labels=status_counts.index, autopct="%1.1f%%", colors=pie_colors, startangle=90)
-                        ax1.set_title("Distribuição por Status", fontsize=10, fontweight="bold")
-                        plt.tight_layout()
-                        st.pyplot(fig1)
-                        plt.close(fig1)
-
-                with g2:
-                    top_colab = df_v_num.groupby("COLABORADOR")["TOTAL_GASTO"].sum().sort_values(ascending=True).tail(10)
-                    if not top_colab.empty:
-                        fig2, ax2 = plt.subplots(figsize=(4.5, 3.5))
-                        top_colab.plot(kind="barh", ax=ax2, color="#2ecc71")
-                        ax2.set_title("Top 10 Colaboradores - Total Gasto", fontsize=10, fontweight="bold")
-                        ax2.set_xlabel("R$", fontsize=8)
-                        plt.tight_layout()
-                        st.pyplot(fig2)
-                        plt.close(fig2)
-
-                g3, g4 = st.columns(2)
-                with g3:
-                    loja_gasto = df_v_num.groupby("LOJA")["TOTAL_GASTO"].sum().sort_values(ascending=False).head(10)
-                    if not loja_gasto.empty:
-                        fig3, ax3 = plt.subplots(figsize=(4.5, 3.5))
-                        loja_gasto.plot(kind="bar", ax=ax3, color="#3498db")
-                        ax3.set_title("Top 10 Lojas - Total Gasto", fontsize=10, fontweight="bold")
-                        ax3.set_ylabel("R$", fontsize=8)
-                        ax3.tick_params(axis="x", rotation=45, labelsize=7)
-                        plt.tight_layout()
-                        st.pyplot(fig3)
-                        plt.close(fig3)
-
-                with g4:
-                    try:
-                        df_v_num["MES"] = pd.to_datetime(df_v_num["DATA_CADASTRO"], format="%d/%m/%Y %H:%M", errors="coerce").dt.to_period("M").astype(str)
-                        mes_counts = df_v_num["MES"].value_counts().sort_index().tail(12)
-                        if not mes_counts.empty:
-                            fig4, ax4 = plt.subplots(figsize=(4.5, 3.5))
-                            mes_counts.plot(kind="line", ax=ax4, marker="o", color="#e74c3c")
-                            ax4.set_title("Viagens por Mês (últimos 12)", fontsize=10, fontweight="bold")
-                            ax4.set_ylabel("Quantidade", fontsize=8)
-                            ax4.tick_params(axis="x", rotation=45, labelsize=7)
+                if not MATPLOT:
+                    st.warning("⚠️ Os gráficos não podem ser exibidos porque a biblioteca matplotlib não está instalada. Adicione matplotlib ao requirements.txt e reinicie o app.")
+                else:
+                    g1, g2 = st.columns(2)
+                    with g1:
+                        status_counts = df_v_num["STATUS"].value_counts()
+                        if not status_counts.empty:
+                            fig1, ax1 = plt.subplots(figsize=(4.5, 3.5))
+                            colors = {"Planejada": "#3498db", "Em Andamento": "#f1c40f", "Concluída": "#2ecc71", "Cancelada": "#e74c3c"}
+                            pie_colors = [colors.get(s, "#95a5a6") for s in status_counts.index]
+                            ax1.pie(status_counts.values, labels=status_counts.index, autopct="%1.1f%%", colors=pie_colors, startangle=90)
+                            ax1.set_title("Distribuição por Status", fontsize=10, fontweight="bold")
                             plt.tight_layout()
-                            st.pyplot(fig4)
-                            plt.close(fig4)
-                    except Exception:
-                        pass
+                            st.pyplot(fig1)
+                            plt.close(fig1)
+
+                    with g2:
+                        top_colab = df_v_num.groupby("COLABORADOR")["TOTAL_GASTO"].sum().sort_values(ascending=True).tail(10)
+                        if not top_colab.empty:
+                            fig2, ax2 = plt.subplots(figsize=(4.5, 3.5))
+                            top_colab.plot(kind="barh", ax=ax2, color="#2ecc71")
+                            ax2.set_title("Top 10 Colaboradores - Total Gasto", fontsize=10, fontweight="bold")
+                            ax2.set_xlabel("R$", fontsize=8)
+                            plt.tight_layout()
+                            st.pyplot(fig2)
+                            plt.close(fig2)
+
+                    g3, g4 = st.columns(2)
+                    with g3:
+                        loja_gasto = df_v_num.groupby("LOJA")["TOTAL_GASTO"].sum().sort_values(ascending=False).head(10)
+                        if not loja_gasto.empty:
+                            fig3, ax3 = plt.subplots(figsize=(4.5, 3.5))
+                            loja_gasto.plot(kind="bar", ax=ax3, color="#3498db")
+                            ax3.set_title("Top 10 Lojas - Total Gasto", fontsize=10, fontweight="bold")
+                            ax3.set_ylabel("R$", fontsize=8)
+                            ax3.tick_params(axis="x", rotation=45, labelsize=7)
+                            plt.tight_layout()
+                            st.pyplot(fig3)
+                            plt.close(fig3)
+
+                    with g4:
+                        try:
+                            df_v_num["MES"] = pd.to_datetime(df_v_num["DATA_CADASTRO"], format="%d/%m/%Y %H:%M", errors="coerce").dt.to_period("M").astype(str)
+                            mes_counts = df_v_num["MES"].value_counts().sort_index().tail(12)
+                            if not mes_counts.empty:
+                                fig4, ax4 = plt.subplots(figsize=(4.5, 3.5))
+                                mes_counts.plot(kind="line", ax=ax4, marker="o", color="#e74c3c")
+                                ax4.set_title("Viagens por Mês (últimos 12)", fontsize=10, fontweight="bold")
+                                ax4.set_ylabel("Quantidade", fontsize=8)
+                                ax4.tick_params(axis="x", rotation=45, labelsize=7)
+                                plt.tight_layout()
+                                st.pyplot(fig4)
+                                plt.close(fig4)
+                        except Exception:
+                            pass
 
                 st.markdown("---")
                 st.markdown("#### 📥 EXPORTAR DADOS")
