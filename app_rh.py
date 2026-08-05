@@ -219,10 +219,8 @@ def init_session_state():
                 st.session_state["compras_solicitacoes"] = []
                 st.session_state["compras_entregas"] = []
         else:
-            # Carrega do JSON local quando GS não está configurado
-            sols, ents = _carregar_compras_local()
-            st.session_state["compras_solicitacoes"] = sols
-            st.session_state["compras_entregas"] = ents
+            st.session_state["compras_solicitacoes"] = []
+            st.session_state["compras_entregas"] = []
     if "compras_entregas" not in st.session_state:
         st.session_state["compras_entregas"] = []
     if "compras_page" not in st.session_state:
@@ -465,37 +463,17 @@ def page_dashboard():
 
 
 
-def _salvar_compras_local(solicitacoes, entregas):
-    """Salva dados do módulo de compras localmente em JSON."""
-    try:
-        with open(ARQUIVO_COMPRAS, "w", encoding="utf-8") as f:
-            json.dump({"solicitacoes": solicitacoes, "entregas": entregas}, f, ensure_ascii=False, indent=2, default=str)
-    except Exception:
-        pass
-
-def _carregar_compras_local():
-    """Carrega dados do módulo de compras do arquivo JSON local."""
-    if not os.path.exists(ARQUIVO_COMPRAS):
-        return [], []
-    try:
-        with open(ARQUIVO_COMPRAS, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        return data.get("solicitacoes", []), data.get("entregas", [])
-    except Exception:
-        return [], []
-
 def _salvar_compras_automatico():
-    """Salva automaticamente o estado atual do módulo de compras no Google Sheets e localmente."""
-    sols = st.session_state.get("compras_solicitacoes", [])
-    ents = st.session_state.get("compras_entregas", [])
-    # Sempre salva localmente como fallback
-    _salvar_compras_local(sols, ents)
-    # Tenta salvar no Google Sheets se configurado
-    if GS_ENABLED and GS_ID_COMPRAS:
-        try:
-            _salvar_compras_gs(sols, ents)
-        except Exception:
-            pass  # silencia falhas de salvamento automático
+    """Salva automaticamente o estado atual do módulo de compras no Google Sheets."""
+    if not GS_ENABLED or not GS_ID_COMPRAS:
+        return
+    try:
+        _salvar_compras_gs(
+            st.session_state.get("compras_solicitacoes", []),
+            st.session_state.get("compras_entregas", [])
+        )
+    except Exception:
+        pass  # silencia falhas de salvamento automático
 
 
 # Inicialização Google Sheets: garante que abas existam
@@ -607,177 +585,149 @@ def page_nova_solicitacao():
                 edit_sol = s
                 break
 
-    # Seletores fora do form para manter reatividade (cliente filtra loja)
+    # Seletores fora do form para atualização dinâmica
     col_sel1, col_sel2, col_sel3 = st.columns(3)
     with col_sel1:
-        cliente = st.selectbox(
-            "Cliente *",
-            CLIENTES,
-            index=CLIENTES.index(edit_sol["cliente"]) if edit_sol and edit_sol.get("cliente") in CLIENTES else 0,
-            key="nova_cliente"
-        )
+        cliente = st.selectbox("Cliente *", CLIENTES, index=CLIENTES.index(edit_sol["cliente"]) if edit_sol and edit_sol.get("cliente") in CLIENTES else 0, key="nova_cliente")
     with col_sel2:
         lojas = LOJAS_POR_CLIENTE.get(cliente, [])
         idx_loja = lojas.index(edit_sol["loja"]) if edit_sol and edit_sol.get("loja") in lojas else 0
         loja = st.selectbox("Loja *", lojas, index=idx_loja, key="nova_loja")
     with col_sel3:
-        tipo = st.selectbox(
-            "Tipo *",
-            TIPOS_SOLICITACAO,
-            index=TIPOS_SOLICITACAO.index(edit_sol["tipo"]) if edit_sol and edit_sol.get("tipo") in TIPOS_SOLICITACAO else 0,
-            key="nova_tipo"
-        )
+        tipo = st.selectbox("Tipo *", TIPOS_SOLICITACAO, index=TIPOS_SOLICITACAO.index(edit_sol["tipo"]) if edit_sol and edit_sol.get("tipo") in TIPOS_SOLICITACAO else 0, key="nova_tipo")
 
-    st.markdown("---")
+    with st.form("form_nova_solicitacao"):
+        c4, c5, c6 = st.columns(3)
+        with c4:
+            solicitante = st.text_input("Solicitante *", value=edit_sol.get("solicitante","") if edit_sol else "")
+        with c5:
+            data_sol_str = ""
+            if edit_sol and edit_sol.get("data"):
+                data_sol_str = _iso_para_br(edit_sol["data"])
+            if not data_sol_str:
+                data_sol_str = datetime.now().strftime("%d/%m/%Y")
+            data_sol_txt = st.text_input("Data (DD/MM/AAAA)", value=data_sol_str)
+            data_sol = _parse_data_br(data_sol_txt)
+        with c6:
+            prioridade = st.selectbox("Prioridade", PRIORIDADES, index=PRIORIDADES.index(edit_sol["prioridade"]) if edit_sol and edit_sol.get("prioridade") in PRIORIDADES else 0)
+
+        previsao_str = ""
+        if edit_sol and edit_sol.get("previsao"):
+            previsao_str = _iso_para_br(edit_sol["previsao"])
+        if not previsao_str:
+            previsao_str = (datetime.now() + timedelta(days=7)).strftime("%d/%m/%Y")
+        previsao_txt = st.text_input("Previsão de Entrega (DD/MM/AAAA)", value=previsao_str)
+        previsao = _parse_data_br(previsao_txt)
+        observacoes = st.text_area("Observações", value=edit_sol.get("observacoes","") if edit_sol else "")
+
+        # Campos específicos EPI
+        if tipo == "EPI":
+            st.markdown("---")
+            st.markdown("#### 👷 Informações EPI")
+            c7, c8, c9 = st.columns(3)
+            with c7:
+                nome_func = st.text_input("Nome do Funcionário", value=edit_sol.get("nomeFuncionario","") if edit_sol else "")
+            with c8:
+                encarregado = st.text_input("Encarregado", value=edit_sol.get("encarregado","") if edit_sol else "")
+            with c9:
+                supervisor = st.text_input("Supervisor", value=edit_sol.get("supervisor","") if edit_sol else "")
+            data_bota_str = ""
+            if edit_sol and edit_sol.get("dataUltimaBota"):
+                data_bota_str = _iso_para_br(edit_sol["dataUltimaBota"])
+            data_bota_txt = st.text_input("Data Última Bota (DD/MM/AAAA)", value=data_bota_str)
+            data_bota = _parse_data_br(data_bota_txt) if data_bota_str else None
+
+        st.markdown("---")
+        submitted = st.form_submit_button("💾 Salvar Solicitação", type="primary")
+
+    # Itens (fora do form para permitir adicionar dinamicamente)
     st.markdown("#### 📦 Itens")
 
     if tipo == "Material":
+        st.markdown("**Materiais**")
         materiais = MATERIAIS_POR_CLIENTE.get(cliente, [])
-        if edit_sol:
-            itens_edit = [
-                {"material": i.get("material", ""), "qtd": i.get("qtd", 1), "valorUnit": i.get("valorUnit", 0)}
+
+        # Inicializar itens do edit
+        if edit_sol and not st.session_state.get("compras_edit_loaded"):
+            st.session_state["compras_nova_itens_material"] = [
+                {"material": i.get("material",""), "qtd": i.get("qtd",1), "valorUnit": i.get("valorUnit",0)}
                 for i in edit_sol.get("itens", [])
             ]
-            df_mat = pd.DataFrame(itens_edit)
-        else:
-            df_mat = pd.DataFrame(columns=["material", "qtd", "valorUnit"])
-        if df_mat.empty:
-            df_mat = pd.DataFrame(columns=["material", "qtd", "valorUnit"])
+            st.session_state["compras_edit_loaded"] = True
 
-        edited_mat = st.data_editor(
-            df_mat,
-            num_rows="dynamic",
-            use_container_width=True,
-            column_config={
-                "material": st.column_config.SelectboxColumn(
-                    "Material", options=materiais, required=True
-                ),
-                "qtd": st.column_config.NumberColumn(
-                    "Quantidade", min_value=1, step=1, required=True
-                ),
-                "valorUnit": st.column_config.NumberColumn(
-                    "Valor Unit. (R$)", min_value=0.0, step=0.01, format="%.2f"
-                ),
-            },
-            key=f"de_mat_{edit_id or 'nova'}"
-        )
-        edited_epi = None
+        itens_mat = st.session_state.get("compras_nova_itens_material", [])
+
+        for idx, item in enumerate(itens_mat):
+            cols = st.columns([3, 1, 1, 1])
+            with cols[0]:
+                item["material"] = st.selectbox(f"Material {idx+1}", materiais, index=materiais.index(item["material"]) if item.get("material") in materiais else 0, key=f"mat_sel_{idx}")
+            with cols[1]:
+                item["qtd"] = st.number_input(f"Qtd {idx+1}", min_value=1, value=int(item.get("qtd", 1)), key=f"mat_qtd_{idx}")
+            with cols[2]:
+                v = item.get("valorUnit", 0)
+                item["valorUnit"] = st.number_input(f"Valor {idx+1}", min_value=0.0, value=float(v), step=0.01, format="%.2f", key=f"mat_val_{idx}")
+            with cols[3]:
+                st.write("")
+                st.write("")
+                if st.button("🗑️", key=f"mat_rem_{idx}"):
+                    itens_mat.pop(idx)
+                    st.session_state["compras_nova_itens_material"] = itens_mat
+                    st.rerun()
+
+        if st.button("➕ Adicionar Material"):
+            itens_mat.append({"material": materiais[0] if materiais else "", "qtd": 1, "valorUnit": 0})
+            st.session_state["compras_nova_itens_material"] = itens_mat
+            st.rerun()
 
     elif tipo == "EPI":
+        st.markdown("**EPIs**")
         epis = EPIS_POR_CLIENTE.get(cliente, EPIS_POR_CLIENTE.get("Smart Fit", []))
-        if edit_sol:
-            itens_edit = [
-                {"epi": i.get("epi", ""), "colaborador": i.get("colaborador", ""),
-                 "qtd": i.get("qtd", 1), "tamanho": i.get("tamanho", "")}
+
+        if edit_sol and not st.session_state.get("compras_edit_loaded"):
+            st.session_state["compras_nova_itens_epi"] = [
+                {"epi": i.get("epi",""), "colaborador": i.get("colaborador",""), "qtd": i.get("qtd",1), "tamanho": i.get("tamanho","")}
                 for i in edit_sol.get("itens", [])
             ]
-            df_epi = pd.DataFrame(itens_edit)
-        else:
-            df_epi = pd.DataFrame(columns=["epi", "colaborador", "qtd", "tamanho"])
-        if df_epi.empty:
-            df_epi = pd.DataFrame(columns=["epi", "colaborador", "qtd", "tamanho"])
+            st.session_state["compras_edit_loaded"] = True
 
-        edited_epi = st.data_editor(
-            df_epi,
-            num_rows="dynamic",
-            use_container_width=True,
-            column_config={
-                "epi": st.column_config.SelectboxColumn(
-                    "EPI", options=epis, required=True
-                ),
-                "colaborador": st.column_config.TextColumn("Colaborador"),
-                "qtd": st.column_config.NumberColumn(
-                    "Quantidade", min_value=1, step=1, required=True
-                ),
-                "tamanho": st.column_config.SelectboxColumn(
-                    "Tamanho", options=TAMANHOS_EPI, required=True
-                ),
-            },
-            key=f"de_epi_{edit_id or 'nova'}"
-        )
-        edited_mat = None
+        itens_epi = st.session_state.get("compras_nova_itens_epi", [])
 
-    # ================================================================
-    # CAMPOS DE TEXTO (FORA DO FORM - evita NotFoundError removeChild)
-    # ================================================================
-    st.markdown("---")
-    c4, c5, c6 = st.columns(3)
-    with c4:
-        def_val_sol = edit_sol.get("solicitante", "") if edit_sol else ""
-        solicitante = st.text_input("Solicitante *", value=def_val_sol, key="nova_solicitante")
-    with c5:
-        data_sol_str = ""
-        if edit_sol and edit_sol.get("data"):
-            data_sol_str = _iso_para_br(edit_sol["data"])
-        if not data_sol_str:
-            data_sol_str = datetime.now().strftime("%d/%m/%Y")
-        data_sol_txt = st.text_input("Data (DD/MM/AAAA)", value=data_sol_str, key="nova_data")
-        data_sol = _parse_data_br(data_sol_txt)
-    with c6:
-        def_prior = edit_sol.get("prioridade", PRIORIDADES[0]) if edit_sol else PRIORIDADES[0]
-        prioridade = st.selectbox(
-            "Prioridade",
-            PRIORIDADES,
-            index=PRIORIDADES.index(def_prior) if def_prior in PRIORIDADES else 0,
-            key="nova_prioridade"
-        )
+        for idx, item in enumerate(itens_epi):
+            cols = st.columns([2, 1, 1, 1, 1])
+            with cols[0]:
+                item["epi"] = st.selectbox(f"EPI {idx+1}", epis, index=epis.index(item["epi"]) if item.get("epi") in epis else 0, key=f"epi_sel_{idx}")
+            with cols[1]:
+                item["colaborador"] = st.text_input(f"Colab {idx+1}", value=item.get("colaborador",""), key=f"epi_col_{idx}")
+            with cols[2]:
+                item["qtd"] = st.number_input(f"Qtd {idx+1}", min_value=1, value=int(item.get("qtd", 1)), key=f"epi_qtd_{idx}")
+            with cols[3]:
+                tams = TAMANHOS_EPI
+                item["tamanho"] = st.selectbox(f"Tam {idx+1}", tams, index=tams.index(item["tamanho"]) if item.get("tamanho") in tams else 0, key=f"epi_tam_{idx}")
+            with cols[4]:
+                st.write("")
+                st.write("")
+                if st.button("🗑️", key=f"epi_rem_{idx}"):
+                    itens_epi.pop(idx)
+                    st.session_state["compras_nova_itens_epi"] = itens_epi
+                    st.rerun()
 
-    previsao_str = ""
-    if edit_sol and edit_sol.get("previsao"):
-        previsao_str = _iso_para_br(edit_sol["previsao"])
-    if not previsao_str:
-        previsao_str = (datetime.now() + timedelta(days=7)).strftime("%d/%m/%Y")
-    previsao_txt = st.text_input("Previsão de Entrega (DD/MM/AAAA)", value=previsao_str, key="nova_previsao")
-    previsao = _parse_data_br(previsao_txt)
-    observacoes = st.text_area("Observações", value=edit_sol.get("observacoes", "") if edit_sol else "", key="nova_obs")
+        if st.button("➕ Adicionar EPI"):
+            itens_epi.append({"epi": epis[0] if epis else "", "colaborador": "", "qtd": 1, "tamanho": ""})
+            st.session_state["compras_nova_itens_epi"] = itens_epi
+            st.rerun()
 
-    # Campos específicos EPI (fora do form, sem erro removeChild)
-    nome_func = ""
-    encarregado = ""
-    supervisor = ""
-    data_bota = None
-    if tipo == "EPI":
-        st.markdown("---")
-        st.markdown("#### 👷 Informações EPI")
-        c7, c8, c9 = st.columns(3)
-        with c7:
-            nome_func = st.text_input("Nome do Funcionário", value=edit_sol.get("nomeFuncionario", "") if edit_sol else "", key="nova_nome_func")
-        with c8:
-            encarregado = st.text_input("Encarregado", value=edit_sol.get("encarregado", "") if edit_sol else "", key="nova_encarregado")
-        with c9:
-            supervisor = st.text_input("Supervisor", value=edit_sol.get("supervisor", "") if edit_sol else "", key="nova_supervisor")
-        data_bota_str = ""
-        if edit_sol and edit_sol.get("dataUltimaBota"):
-            data_bota_str = _iso_para_br(edit_sol["dataUltimaBota"])
-        data_bota_txt = st.text_input("Data Última Bota (DD/MM/AAAA)", value=data_bota_str, key="nova_data_bota")
-        data_bota = _parse_data_br(data_bota_txt) if data_bota_str else None
-
-    submitted = st.button("💾 Salvar Solicitação", type="primary", key="nova_salvar")
-
+    # Ao salvar
     if submitted:
         itens = []
         valor_total = 0
         if tipo == "Material":
-            for _, row in edited_mat.iterrows():
-                if pd.notna(row.get("material")) and str(row.get("material")).strip():
-                    itens.append({
-                        "material": str(row.get("material")),
-                        "qtd": int(row.get("qtd", 1)) if pd.notna(row.get("qtd")) else 1,
-                        "valorUnit": float(row.get("valorUnit", 0)) if pd.notna(row.get("valorUnit")) else 0.0,
-                    })
-            valor_total = sum(i["valorUnit"] * i["qtd"] for i in itens)
+            itens = st.session_state.get("compras_nova_itens_material", [])
+            valor_total = sum(i.get("valorUnit", 0) * i.get("qtd", 0) for i in itens)
             if not itens:
                 st.error("Adicione pelo menos um material.")
                 return
         elif tipo == "EPI":
-            for _, row in edited_epi.iterrows():
-                if pd.notna(row.get("epi")) and str(row.get("epi")).strip():
-                    itens.append({
-                        "epi": str(row.get("epi")),
-                        "colaborador": str(row.get("colaborador", "")) if pd.notna(row.get("colaborador")) else "",
-                        "qtd": int(row.get("qtd", 1)) if pd.notna(row.get("qtd")) else 1,
-                        "tamanho": str(row.get("tamanho", "")) if pd.notna(row.get("tamanho")) else "",
-                    })
+            itens = st.session_state.get("compras_nova_itens_epi", [])
             if not itens:
                 st.error("Adicione pelo menos um EPI.")
                 return
@@ -803,6 +753,7 @@ def page_nova_solicitacao():
             "dataCriacao": edit_sol.get("dataCriacao", datetime.now().isoformat()) if edit_sol else datetime.now().isoformat()
         }
 
+        # Gera documentos
         if tipo == "EPI":
             html_doc = gerar_doc_epi(nova_sol)
             nova_sol["anexos"].append({
@@ -819,12 +770,14 @@ def page_nova_solicitacao():
                     "tipo": "xls"
                 })
 
+        # Atualiza lista
         sols = st.session_state["compras_solicitacoes"]
         if edit_sol:
             sols = [s for s in sols if s["id"] != edit_id]
         sols.append(nova_sol)
         st.session_state["compras_solicitacoes"] = sols
 
+        # Atualiza entregas
         if not edit_sol:
             st.session_state["compras_entregas"].append({
                 "idSolicitacao": nova_sol["id"],
@@ -839,6 +792,7 @@ def page_nova_solicitacao():
                 "observacoes": ""
             })
 
+        # Limpa estado
         st.session_state["compras_nova_itens_material"] = []
         st.session_state["compras_nova_itens_epi"] = []
         st.session_state["compras_edit_id"] = None
@@ -846,7 +800,9 @@ def page_nova_solicitacao():
         _salvar_compras_automatico()
         st.success("Solicitação salva com sucesso!")
         st.session_state["compras_page"] = "Solicitações"
+        # Navegação para Solicitações via compras_page
         st.rerun()
+
 
 def page_detalhes():
     ver_id = st.session_state.get("compras_ver_id")
@@ -1151,7 +1107,6 @@ PASTA_DOCS = os.path.join(BASE_DIR, "Documentos_Lojas")
 PASTA_DOCS_FUNC = os.path.join(BASE_DIR, "Documentos_Funcionarios")
 PASTA_FOTOS = os.path.join(BASE_DIR, "Fotos_Funcionarios")
 PASTA_COMPROVANTES = os.path.join(BASE_DIR, "Comprovantes_Diarias")
-ARQUIVO_COMPRAS = os.path.join(BASE_DIR, "dados_compras.json")
 os.makedirs(PASTA_DOCS, exist_ok=True)
 os.makedirs(PASTA_DOCS_FUNC, exist_ok=True)
 os.makedirs(PASTA_FOTOS, exist_ok=True)
@@ -2682,7 +2637,7 @@ with aba2:
     st.markdown("---")
     st.subheader("📊 GRÁFICO POR SITUAÇÃO")
     if not MATPLOT:
-        st.warning("⚠️ O gráfico não pode ser exibido porque a biblioteca matplotlib não está instalada. Adicione matplotlib ao requirements.txt e reinicie o app.")
+        st.warning("⚠️ O gráfico não pode ser exibido porque a biblioteca `matplotlib` não está instalada. Adicione `matplotlib` ao `requirements.txt` e reinicie o app.")
     else:
         try:
             contagem_graf = {
@@ -4043,61 +3998,58 @@ with aba9:
                 st.markdown("---")
                 st.markdown("#### 📈 Gráficos")
 
-                if not MATPLOT:
-                    st.warning("⚠️ Os gráficos não podem ser exibidos porque a biblioteca matplotlib não está instalada. Adicione matplotlib ao requirements.txt e reinicie o app.")
-                else:
-                    g1, g2 = st.columns(2)
-                    with g1:
-                        status_counts = df_v_num["STATUS"].value_counts()
-                        if not status_counts.empty:
-                            fig1, ax1 = plt.subplots(figsize=(4.5, 3.5))
-                            colors = {"Planejada": "#3498db", "Em Andamento": "#f1c40f", "Concluída": "#2ecc71", "Cancelada": "#e74c3c"}
-                            pie_colors = [colors.get(s, "#95a5a6") for s in status_counts.index]
-                            ax1.pie(status_counts.values, labels=status_counts.index, autopct="%1.1f%%", colors=pie_colors, startangle=90)
-                            ax1.set_title("Distribuição por Status", fontsize=10, fontweight="bold")
-                            plt.tight_layout()
-                            st.pyplot(fig1)
-                            plt.close(fig1)
+                g1, g2 = st.columns(2)
+                with g1:
+                    status_counts = df_v_num["STATUS"].value_counts()
+                    if not status_counts.empty:
+                        fig1, ax1 = plt.subplots(figsize=(4.5, 3.5))
+                        colors = {"Planejada": "#3498db", "Em Andamento": "#f1c40f", "Concluída": "#2ecc71", "Cancelada": "#e74c3c"}
+                        pie_colors = [colors.get(s, "#95a5a6") for s in status_counts.index]
+                        ax1.pie(status_counts.values, labels=status_counts.index, autopct="%1.1f%%", colors=pie_colors, startangle=90)
+                        ax1.set_title("Distribuição por Status", fontsize=10, fontweight="bold")
+                        plt.tight_layout()
+                        st.pyplot(fig1)
+                        plt.close(fig1)
 
-                    with g2:
-                        top_colab = df_v_num.groupby("COLABORADOR")["TOTAL_GASTO"].sum().sort_values(ascending=True).tail(10)
-                        if not top_colab.empty:
-                            fig2, ax2 = plt.subplots(figsize=(4.5, 3.5))
-                            top_colab.plot(kind="barh", ax=ax2, color="#2ecc71")
-                            ax2.set_title("Top 10 Colaboradores - Total Gasto", fontsize=10, fontweight="bold")
-                            ax2.set_xlabel("R$", fontsize=8)
-                            plt.tight_layout()
-                            st.pyplot(fig2)
-                            plt.close(fig2)
+                with g2:
+                    top_colab = df_v_num.groupby("COLABORADOR")["TOTAL_GASTO"].sum().sort_values(ascending=True).tail(10)
+                    if not top_colab.empty:
+                        fig2, ax2 = plt.subplots(figsize=(4.5, 3.5))
+                        top_colab.plot(kind="barh", ax=ax2, color="#2ecc71")
+                        ax2.set_title("Top 10 Colaboradores - Total Gasto", fontsize=10, fontweight="bold")
+                        ax2.set_xlabel("R$", fontsize=8)
+                        plt.tight_layout()
+                        st.pyplot(fig2)
+                        plt.close(fig2)
 
-                    g3, g4 = st.columns(2)
-                    with g3:
-                        loja_gasto = df_v_num.groupby("LOJA")["TOTAL_GASTO"].sum().sort_values(ascending=False).head(10)
-                        if not loja_gasto.empty:
-                            fig3, ax3 = plt.subplots(figsize=(4.5, 3.5))
-                            loja_gasto.plot(kind="bar", ax=ax3, color="#3498db")
-                            ax3.set_title("Top 10 Lojas - Total Gasto", fontsize=10, fontweight="bold")
-                            ax3.set_ylabel("R$", fontsize=8)
-                            ax3.tick_params(axis="x", rotation=45, labelsize=7)
-                            plt.tight_layout()
-                            st.pyplot(fig3)
-                            plt.close(fig3)
+                g3, g4 = st.columns(2)
+                with g3:
+                    loja_gasto = df_v_num.groupby("LOJA")["TOTAL_GASTO"].sum().sort_values(ascending=False).head(10)
+                    if not loja_gasto.empty:
+                        fig3, ax3 = plt.subplots(figsize=(4.5, 3.5))
+                        loja_gasto.plot(kind="bar", ax=ax3, color="#3498db")
+                        ax3.set_title("Top 10 Lojas - Total Gasto", fontsize=10, fontweight="bold")
+                        ax3.set_ylabel("R$", fontsize=8)
+                        ax3.tick_params(axis="x", rotation=45, labelsize=7)
+                        plt.tight_layout()
+                        st.pyplot(fig3)
+                        plt.close(fig3)
 
-                    with g4:
-                        try:
-                            df_v_num["MES"] = pd.to_datetime(df_v_num["DATA_CADASTRO"], format="%d/%m/%Y %H:%M", errors="coerce").dt.to_period("M").astype(str)
-                            mes_counts = df_v_num["MES"].value_counts().sort_index().tail(12)
-                            if not mes_counts.empty:
-                                fig4, ax4 = plt.subplots(figsize=(4.5, 3.5))
-                                mes_counts.plot(kind="line", ax=ax4, marker="o", color="#e74c3c")
-                                ax4.set_title("Viagens por Mês (últimos 12)", fontsize=10, fontweight="bold")
-                                ax4.set_ylabel("Quantidade", fontsize=8)
-                                ax4.tick_params(axis="x", rotation=45, labelsize=7)
-                                plt.tight_layout()
-                                st.pyplot(fig4)
-                                plt.close(fig4)
-                        except Exception:
-                            pass
+                with g4:
+                    try:
+                        df_v_num["MES"] = pd.to_datetime(df_v_num["DATA_CADASTRO"], format="%d/%m/%Y %H:%M", errors="coerce").dt.to_period("M").astype(str)
+                        mes_counts = df_v_num["MES"].value_counts().sort_index().tail(12)
+                        if not mes_counts.empty:
+                            fig4, ax4 = plt.subplots(figsize=(4.5, 3.5))
+                            mes_counts.plot(kind="line", ax=ax4, marker="o", color="#e74c3c")
+                            ax4.set_title("Viagens por Mês (últimos 12)", fontsize=10, fontweight="bold")
+                            ax4.set_ylabel("Quantidade", fontsize=8)
+                            ax4.tick_params(axis="x", rotation=45, labelsize=7)
+                            plt.tight_layout()
+                            st.pyplot(fig4)
+                            plt.close(fig4)
+                    except Exception:
+                        pass
 
                 st.markdown("---")
                 st.markdown("#### 📥 EXPORTAR DADOS")
