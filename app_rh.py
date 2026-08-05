@@ -628,9 +628,6 @@ def page_nova_solicitacao():
             key="nova_tipo"
         )
 
-    # ================================================================
-    # DATA EDITOR FORA DO FORM (evita NotFoundError do React DOM)
-    # ================================================================
     st.markdown("---")
     st.markdown("#### 📦 Itens")
 
@@ -701,56 +698,62 @@ def page_nova_solicitacao():
         edited_mat = None
 
     # ================================================================
-    # FORM COM OS DEMAIS CAMPOS
+    # CAMPOS DE TEXTO (FORA DO FORM - evita NotFoundError removeChild)
     # ================================================================
-    with st.form("form_nova_solicitacao"):
-        c4, c5, c6 = st.columns(3)
-        with c4:
-            solicitante = st.text_input("Solicitante *", value=edit_sol.get("solicitante", "") if edit_sol else "")
-        with c5:
-            data_sol_str = ""
-            if edit_sol and edit_sol.get("data"):
-                data_sol_str = _iso_para_br(edit_sol["data"])
-            if not data_sol_str:
-                data_sol_str = datetime.now().strftime("%d/%m/%Y")
-            data_sol_txt = st.text_input("Data (DD/MM/AAAA)", value=data_sol_str)
-            data_sol = _parse_data_br(data_sol_txt)
-        with c6:
-            prioridade = st.selectbox(
-                "Prioridade",
-                PRIORIDADES,
-                index=PRIORIDADES.index(edit_sol["prioridade"]) if edit_sol and edit_sol.get("prioridade") in PRIORIDADES else 0
-            )
+    st.markdown("---")
+    c4, c5, c6 = st.columns(3)
+    with c4:
+        def_val_sol = edit_sol.get("solicitante", "") if edit_sol else ""
+        solicitante = st.text_input("Solicitante *", value=def_val_sol, key="nova_solicitante")
+    with c5:
+        data_sol_str = ""
+        if edit_sol and edit_sol.get("data"):
+            data_sol_str = _iso_para_br(edit_sol["data"])
+        if not data_sol_str:
+            data_sol_str = datetime.now().strftime("%d/%m/%Y")
+        data_sol_txt = st.text_input("Data (DD/MM/AAAA)", value=data_sol_str, key="nova_data")
+        data_sol = _parse_data_br(data_sol_txt)
+    with c6:
+        def_prior = edit_sol.get("prioridade", PRIORIDADES[0]) if edit_sol else PRIORIDADES[0]
+        prioridade = st.selectbox(
+            "Prioridade",
+            PRIORIDADES,
+            index=PRIORIDADES.index(def_prior) if def_prior in PRIORIDADES else 0,
+            key="nova_prioridade"
+        )
 
-        previsao_str = ""
-        if edit_sol and edit_sol.get("previsao"):
-            previsao_str = _iso_para_br(edit_sol["previsao"])
-        if not previsao_str:
-            previsao_str = (datetime.now() + timedelta(days=7)).strftime("%d/%m/%Y")
-        previsao_txt = st.text_input("Previsão de Entrega (DD/MM/AAAA)", value=previsao_str)
-        previsao = _parse_data_br(previsao_txt)
-        observacoes = st.text_area("Observações", value=edit_sol.get("observacoes", "") if edit_sol else "")
+    previsao_str = ""
+    if edit_sol and edit_sol.get("previsao"):
+        previsao_str = _iso_para_br(edit_sol["previsao"])
+    if not previsao_str:
+        previsao_str = (datetime.now() + timedelta(days=7)).strftime("%d/%m/%Y")
+    previsao_txt = st.text_input("Previsão de Entrega (DD/MM/AAAA)", value=previsao_str, key="nova_previsao")
+    previsao = _parse_data_br(previsao_txt)
+    observacoes = st.text_area("Observações", value=edit_sol.get("observacoes", "") if edit_sol else "", key="nova_obs")
 
-        # Campos específicos EPI
-        if tipo == "EPI":
-            st.markdown("---")
-            st.markdown("#### 👷 Informações EPI")
-            c7, c8, c9 = st.columns(3)
-            with c7:
-                nome_func = st.text_input("Nome do Funcionário", value=edit_sol.get("nomeFuncionario", "") if edit_sol else "")
-            with c8:
-                encarregado = st.text_input("Encarregado", value=edit_sol.get("encarregado", "") if edit_sol else "")
-            with c9:
-                supervisor = st.text_input("Supervisor", value=edit_sol.get("supervisor", "") if edit_sol else "")
-            data_bota_str = ""
-            if edit_sol and edit_sol.get("dataUltimaBota"):
-                data_bota_str = _iso_para_br(edit_sol["dataUltimaBota"])
-            data_bota_txt = st.text_input("Data Última Bota (DD/MM/AAAA)", value=data_bota_str)
-            data_bota = _parse_data_br(data_bota_txt) if data_bota_str else None
+    # Campos específicos EPI (fora do form, sem erro removeChild)
+    nome_func = ""
+    encarregado = ""
+    supervisor = ""
+    data_bota = None
+    if tipo == "EPI":
+        st.markdown("---")
+        st.markdown("#### 👷 Informações EPI")
+        c7, c8, c9 = st.columns(3)
+        with c7:
+            nome_func = st.text_input("Nome do Funcionário", value=edit_sol.get("nomeFuncionario", "") if edit_sol else "", key="nova_nome_func")
+        with c8:
+            encarregado = st.text_input("Encarregado", value=edit_sol.get("encarregado", "") if edit_sol else "", key="nova_encarregado")
+        with c9:
+            supervisor = st.text_input("Supervisor", value=edit_sol.get("supervisor", "") if edit_sol else "", key="nova_supervisor")
+        data_bota_str = ""
+        if edit_sol and edit_sol.get("dataUltimaBota"):
+            data_bota_str = _iso_para_br(edit_sol["dataUltimaBota"])
+        data_bota_txt = st.text_input("Data Última Bota (DD/MM/AAAA)", value=data_bota_str, key="nova_data_bota")
+        data_bota = _parse_data_br(data_bota_txt) if data_bota_str else None
 
-        submitted = st.form_submit_button("💾 Salvar Solicitação", type="primary")
+    submitted = st.button("💾 Salvar Solicitação", type="primary", key="nova_salvar")
 
-    # Ao salvar (fora do form para permitir mensagens e navegação)
     if submitted:
         itens = []
         valor_total = 0
@@ -800,7 +803,6 @@ def page_nova_solicitacao():
             "dataCriacao": edit_sol.get("dataCriacao", datetime.now().isoformat()) if edit_sol else datetime.now().isoformat()
         }
 
-        # Gera documentos
         if tipo == "EPI":
             html_doc = gerar_doc_epi(nova_sol)
             nova_sol["anexos"].append({
@@ -817,14 +819,12 @@ def page_nova_solicitacao():
                     "tipo": "xls"
                 })
 
-        # Atualiza lista
         sols = st.session_state["compras_solicitacoes"]
         if edit_sol:
             sols = [s for s in sols if s["id"] != edit_id]
         sols.append(nova_sol)
         st.session_state["compras_solicitacoes"] = sols
 
-        # Atualiza entregas
         if not edit_sol:
             st.session_state["compras_entregas"].append({
                 "idSolicitacao": nova_sol["id"],
@@ -839,7 +839,6 @@ def page_nova_solicitacao():
                 "observacoes": ""
             })
 
-        # Limpa estado
         st.session_state["compras_nova_itens_material"] = []
         st.session_state["compras_nova_itens_epi"] = []
         st.session_state["compras_edit_id"] = None
