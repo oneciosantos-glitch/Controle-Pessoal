@@ -1886,30 +1886,75 @@ def lista_cargos():
 
 def calcular_e_atualizar(form):
     hoje = datetime.now().date()
+
+    # Aviso Prévio
     if form.get("dt_aviso") and form.get("dias_aviso") and str(form["dias_aviso"]).isdigit():
         try:
             dt = datetime.strptime(form["dt_aviso"], "%d/%m/%Y")
-            form["termino_aviso"] = (dt + timedelta(days=int(form["dias_aviso"]))).strftime("%d/%m/%Y")
-        except: form["termino_aviso"] = ""
-    else: form["termino_aviso"] = ""
-
-    if form.get("dt_lic") and form.get("dias_lic") and str(form["dias_lic"]).isdigit():
-        try:
-            dt = datetime.strptime(form["dt_lic"], "%d/%m/%Y")
-            form["termino_lic"] = (dt + timedelta(days=int(form["dias_lic"]))).strftime("%d/%m/%Y")
-        except: form["termino_lic"] = ""
-    else: form["termino_lic"] = ""
-
-    if form.get("dt_fer") and form.get("dias_fer") and str(form["dias_fer"]).isdigit():
-        try:
-            dt = datetime.strptime(form["dt_fer"], "%d/%m/%Y")
-            form["retorno_fer"] = (dt + timedelta(days=int(form["dias_fer"]))).strftime("%d/%m/%Y")
-            retorno_date = datetime.strptime(form["retorno_fer"], "%d/%m/%Y").date()
-            # Só define como Férias se ainda não passou a data de retorno
-            if retorno_date >= hoje and not any([
+            form["termino_aviso"] = (dt + timedelta(days=int(form["dias_aviso"]) - 1)).strftime("%d/%m/%Y")
+            termino_aviso_date = datetime.strptime(form["termino_aviso"], "%d/%m/%Y").date()
+            # Se o aviso prévio venceu e não tem outro evento, muda para Demitido S/JC
+            if termino_aviso_date < hoje and not any([
                 form.get("dt_pedido","").strip(), form.get("dt_rescisao","").strip(),
                 form.get("dt_abandono","").strip(), form.get("dt_desistencia","").strip(),
                 form.get("dt_termino_cont","").strip()
+            ]):
+                form["situacao"] = "Demitido S/JC"
+            elif termino_aviso_date >= hoje and not any([
+                form.get("dt_pedido","").strip(), form.get("dt_rescisao","").strip(),
+                form.get("dt_abandono","").strip(), form.get("dt_desistencia","").strip(),
+                form.get("dt_termino_cont","").strip()
+            ]):
+                form["situacao"] = "Aviso Prévio"
+        except: form["termino_aviso"] = ""
+    else: form["termino_aviso"] = ""
+
+    # Licença
+    if form.get("dt_lic") and form.get("dias_lic") and str(form["dias_lic"]).isdigit():
+        try:
+            dt = datetime.strptime(form["dt_lic"], "%d/%m/%Y")
+            form["termino_lic"] = (dt + timedelta(days=int(form["dias_lic"]) - 1)).strftime("%d/%m/%Y")
+            termino_lic_date = datetime.strptime(form["termino_lic"], "%d/%m/%Y").date()
+            # Se a licença venceu e não tem outro evento, volta para Ativo
+            if termino_lic_date < hoje and not any([
+                form.get("dt_pedido","").strip(), form.get("dt_rescisao","").strip(),
+                form.get("dt_abandono","").strip(), form.get("dt_desistencia","").strip(),
+                form.get("dt_termino_cont","").strip(),
+                form.get("dt_aviso","").strip(), form.get("dt_fer","").strip(),
+                form.get("dt_af","").strip()
+            ]):
+                form["situacao"] = "Ativo"
+            elif termino_lic_date >= hoje and not any([
+                form.get("dt_pedido","").strip(), form.get("dt_rescisao","").strip(),
+                form.get("dt_abandono","").strip(), form.get("dt_desistencia","").strip(),
+                form.get("dt_termino_cont","").strip(),
+                form.get("dt_aviso","").strip(), form.get("dt_fer","").strip(),
+                form.get("dt_af","").strip()
+            ]):
+                form["situacao"] = "Licença"
+        except: form["termino_lic"] = ""
+    else: form["termino_lic"] = ""
+
+    # Férias
+    if form.get("dt_fer") and form.get("dias_fer") and str(form["dias_fer"]).isdigit():
+        try:
+            dt = datetime.strptime(form["dt_fer"], "%d/%m/%Y")
+            form["retorno_fer"] = (dt + timedelta(days=int(form["dias_fer"]) - 1)).strftime("%d/%m/%Y")
+            retorno_date = datetime.strptime(form["retorno_fer"], "%d/%m/%Y").date()
+            if retorno_date < hoje and not any([
+                form.get("dt_pedido","").strip(), form.get("dt_rescisao","").strip(),
+                form.get("dt_abandono","").strip(), form.get("dt_desistencia","").strip(),
+                form.get("dt_termino_cont","").strip(),
+                form.get("dt_aviso","").strip(), form.get("dt_lic","").strip(),
+                form.get("dt_af","").strip()
+            ]):
+                form["situacao"] = "Ativo"
+            elif retorno_date >= hoje and not any([
+                form.get("dt_pedido","").strip(), form.get("dt_rescisao","").strip(),
+                form.get("dt_abandono","").strip(), form.get("dt_desistencia","").strip(),
+                form.get("dt_termino_cont","").strip(),
+                form.get("dt_aviso","").strip(), form.get("dt_lic","").strip(),
+                form.get("dt_af","").strip()
             ]):
                 form["situacao"] = "Férias"
         except:
@@ -1917,22 +1962,33 @@ def calcular_e_atualizar(form):
     else:
         form["retorno_fer"] = ""
 
+    # Afastamento
     if form.get("dt_af") and form.get("dias_af") and str(form["dias_af"]).isdigit():
         try:
             dt = datetime.strptime(form["dt_af"], "%d/%m/%Y")
-            form["retorno_af"] = (dt + timedelta(days=int(form["dias_af"]))).strftime("%d/%m/%Y")
+            form["retorno_af"] = (dt + timedelta(days=int(form["dias_af"]) - 1)).strftime("%d/%m/%Y")
             retorno_af_date = datetime.strptime(form["retorno_af"], "%d/%m/%Y").date()
             tipo_af = form.get("tipo_af", "Nenhum")
-            # Só define como Doença/Acidente/Maternidade se ainda não passou a data de retorno
-            if tipo_af != "Nenhum" and retorno_af_date >= hoje and not any([
+            if tipo_af != "Nenhum" and retorno_af_date < hoje and not any([
                 form.get("dt_pedido","").strip(), form.get("dt_rescisao","").strip(),
                 form.get("dt_abandono","").strip(), form.get("dt_desistencia","").strip(),
-                form.get("dt_termino_cont","").strip()
+                form.get("dt_termino_cont","").strip(),
+                form.get("dt_aviso","").strip(), form.get("dt_lic","").strip(),
+                form.get("dt_fer","").strip()
+            ]):
+                form["situacao"] = "Ativo"
+            elif tipo_af != "Nenhum" and retorno_af_date >= hoje and not any([
+                form.get("dt_pedido","").strip(), form.get("dt_rescisao","").strip(),
+                form.get("dt_abandono","").strip(), form.get("dt_desistencia","").strip(),
+                form.get("dt_termino_cont","").strip(),
+                form.get("dt_aviso","").strip(), form.get("dt_lic","").strip(),
+                form.get("dt_fer","").strip()
             ]):
                 form["situacao"] = tipo_af
         except: form["retorno_af"] = ""
     else: form["retorno_af"] = ""
 
+    # Eventos definitivos (mantêm prioridade)
     if form.get("dt_termino_cont") and form.get("dt_termino_cont").strip():
         form["situacao"] = "Término de Contrato"
     elif form.get("dt_pedido") and form.get("dt_pedido").strip():
@@ -2287,7 +2343,7 @@ with aba1:
                     status = "HOJE"
                 else:
                     status = f"Vencido há {abs(rest)} dias"
-                prazos_exp.append([f"{prazo} dias", (dt_adm + timedelta(days=prazo)).strftime("%d/%m/%Y"), status])
+                prazos_exp.append([f"{prazo} dias", (dt_adm + timedelta(days=prazo - 1)).strftime("%d/%m/%Y"), status])
         except:
             pass
 
