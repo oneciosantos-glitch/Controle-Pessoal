@@ -219,8 +219,10 @@ def init_session_state():
                 st.session_state["compras_solicitacoes"] = []
                 st.session_state["compras_entregas"] = []
         else:
-            st.session_state["compras_solicitacoes"] = []
-            st.session_state["compras_entregas"] = []
+            # Carrega do JSON local quando GS não está configurado
+            sols, ents = _carregar_compras_local()
+            st.session_state["compras_solicitacoes"] = sols
+            st.session_state["compras_entregas"] = ents
     if "compras_entregas" not in st.session_state:
         st.session_state["compras_entregas"] = []
     if "compras_page" not in st.session_state:
@@ -463,17 +465,37 @@ def page_dashboard():
 
 
 
-def _salvar_compras_automatico():
-    """Salva automaticamente o estado atual do módulo de compras no Google Sheets."""
-    if not GS_ENABLED or not GS_ID_COMPRAS:
-        return
+def _salvar_compras_local(solicitacoes, entregas):
+    """Salva dados do módulo de compras localmente em JSON."""
     try:
-        _salvar_compras_gs(
-            st.session_state.get("compras_solicitacoes", []),
-            st.session_state.get("compras_entregas", [])
-        )
+        with open(ARQUIVO_COMPRAS, "w", encoding="utf-8") as f:
+            json.dump({"solicitacoes": solicitacoes, "entregas": entregas}, f, ensure_ascii=False, indent=2, default=str)
     except Exception:
-        pass  # silencia falhas de salvamento automático
+        pass
+
+def _carregar_compras_local():
+    """Carrega dados do módulo de compras do arquivo JSON local."""
+    if not os.path.exists(ARQUIVO_COMPRAS):
+        return [], []
+    try:
+        with open(ARQUIVO_COMPRAS, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data.get("solicitacoes", []), data.get("entregas", [])
+    except Exception:
+        return [], []
+
+def _salvar_compras_automatico():
+    """Salva automaticamente o estado atual do módulo de compras no Google Sheets e localmente."""
+    sols = st.session_state.get("compras_solicitacoes", [])
+    ents = st.session_state.get("compras_entregas", [])
+    # Sempre salva localmente como fallback
+    _salvar_compras_local(sols, ents)
+    # Tenta salvar no Google Sheets se configurado
+    if GS_ENABLED and GS_ID_COMPRAS:
+        try:
+            _salvar_compras_gs(sols, ents)
+        except Exception:
+            pass  # silencia falhas de salvamento automático
 
 
 # Inicialização Google Sheets: garante que abas existam
@@ -1107,6 +1129,7 @@ PASTA_DOCS = os.path.join(BASE_DIR, "Documentos_Lojas")
 PASTA_DOCS_FUNC = os.path.join(BASE_DIR, "Documentos_Funcionarios")
 PASTA_FOTOS = os.path.join(BASE_DIR, "Fotos_Funcionarios")
 PASTA_COMPROVANTES = os.path.join(BASE_DIR, "Comprovantes_Diarias")
+ARQUIVO_COMPRAS = os.path.join(BASE_DIR, "dados_compras.json")
 os.makedirs(PASTA_DOCS, exist_ok=True)
 os.makedirs(PASTA_DOCS_FUNC, exist_ok=True)
 os.makedirs(PASTA_FOTOS, exist_ok=True)
