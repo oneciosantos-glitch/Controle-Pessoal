@@ -209,18 +209,18 @@ def formatar_moeda(v):
 
 def init_session_state():
     if "compras_solicitacoes" not in st.session_state:
+        sols, ents = [], []
         # Tenta carregar do Google Sheets
         if GS_ENABLED and GS_ID_COMPRAS:
             try:
                 sols, ents = _carregar_compras_gs()
-                st.session_state["compras_solicitacoes"] = sols
-                st.session_state["compras_entregas"] = ents
             except Exception:
-                st.session_state["compras_solicitacoes"] = []
-                st.session_state["compras_entregas"] = []
-        else:
-            st.session_state["compras_solicitacoes"] = []
-            st.session_state["compras_entregas"] = []
+                sols, ents = [], []
+        # Se não conseguiu do GS, tenta carregar do arquivo local
+        if not sols and not ents:
+            sols, ents = _carregar_compras_local()
+        st.session_state["compras_solicitacoes"] = sols
+        st.session_state["compras_entregas"] = ents
     if "compras_entregas" not in st.session_state:
         st.session_state["compras_entregas"] = []
     if "compras_page" not in st.session_state:
@@ -463,15 +463,37 @@ def page_dashboard():
 
 
 
+def _salvar_compras_local(solicitacoes, entregas):
+    """Salva dados de compras em arquivo JSON local."""
+    try:
+        with open(ARQUIVO_COMPRAS, "w", encoding="utf-8") as f:
+            json.dump({"solicitacoes": solicitacoes, "entregas": entregas}, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+
+def _carregar_compras_local():
+    """Carrega dados de compras do arquivo JSON local."""
+    if not os.path.exists(ARQUIVO_COMPRAS):
+        return [], []
+    try:
+        with open(ARQUIVO_COMPRAS, "r", encoding="utf-8") as f:
+            dados = json.load(f)
+        return dados.get("solicitacoes", []), dados.get("entregas", [])
+    except Exception:
+        return [], []
+
+
 def _salvar_compras_automatico():
-    """Salva automaticamente o estado atual do módulo de compras no Google Sheets."""
+    """Salva automaticamente o estado atual do módulo de compras no Google Sheets e localmente."""
+    sols = st.session_state.get("compras_solicitacoes", [])
+    ents = st.session_state.get("compras_entregas", [])
+    # Sempre salva localmente para garantir persistência
+    _salvar_compras_local(sols, ents)
     if not GS_ENABLED or not GS_ID_COMPRAS:
         return
     try:
-        _salvar_compras_gs(
-            st.session_state.get("compras_solicitacoes", []),
-            st.session_state.get("compras_entregas", [])
-        )
+        _salvar_compras_gs(sols, ents)
     except Exception:
         pass  # silencia falhas de salvamento automático
 
@@ -1103,6 +1125,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ARQUIVO = os.path.join(BASE_DIR, "dados_funcionarios.xlsx")
 ARQUIVO_DIARIAS = os.path.join(BASE_DIR, "controle_diarias.xlsx")
 ARQUIVO_VIAGENS = os.path.join(BASE_DIR, "registro_viagens.xlsx")
+ARQUIVO_COMPRAS = os.path.join(BASE_DIR, "dados_compras.json")
 PASTA_DOCS = os.path.join(BASE_DIR, "Documentos_Lojas")
 PASTA_DOCS_FUNC = os.path.join(BASE_DIR, "Documentos_Funcionarios")
 PASTA_FOTOS = os.path.join(BASE_DIR, "Fotos_Funcionarios")
@@ -1813,7 +1836,7 @@ def criar_backup_zip():
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
         # Arquivos Excel principais (nome relativo no ZIP)
-        for arq in [ARQUIVO, ARQUIVO_DIARIAS, ARQUIVO_VIAGENS]:
+        for arq in [ARQUIVO, ARQUIVO_DIARIAS, ARQUIVO_VIAGENS, ARQUIVO_COMPRAS]:
             if os.path.exists(arq):
                 zf.write(arq, os.path.basename(arq))
         # Pastas de documentos, fotos e comprovantes (caminho relativo ao BASE_DIR)
